@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   db:
     image: postgres:15
@@ -26,7 +25,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["npx","prisma","db","push","--schema","/usr/src/app/packages/db/schema.prisma"]
+    command: ["sh","-c","cd /usr/src/app/apps/api && npx prisma db push --schema=../../packages/db/schema.prisma"]
 
   api:
     build:
