@@ -1,0 +1,8 @@
+FROM node:20-alpine
+WORKDIR /usr/src/app/apps/web
+COPY apps/web/package.json apps/web/tsconfig.json apps/web/vite.config.ts ./ 
+COPY apps/web/index.html ./index.html
+COPY apps/web/src ./src
+RUN npm install
+EXPOSE 3000
+CMD ["npm","run","dev","--","--host","0.0.0.0","--port","3000"]

@@ -1,0 +1,99 @@
+// Datasource y generador
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  currency     String   @default("USD")
+  createdAt    DateTime @default(now())
+
+  transactions PersonalTransaction[]
+  groups       Group[]  @relation("UserGroups")
+  memberships  GroupMember[] @relation("UserMember")
+}
+
+model PersonalTransaction {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  type       String   // 'income' | 'expense'
+  amount     Decimal  @db.Decimal(12,2)
+  category   String?
+  occurredAt DateTime
+  note       String?
+}
+
+model Group {
+  id           String   @id @default(uuid())
+  name         String
+  ownerUserId  String
+  owner        User     @relation("UserGroups", fields: [ownerUserId], references: [id])
+  currency     String   @default("USD")
+  createdAt    DateTime @default(now())
+
+  members      GroupMember[]
+  expenses     GroupExpense[]
+  settlements  GroupSettlement[]
+}
+
+model GroupMember {
+  id         String  @id @default(uuid())
+  groupId    String
+  group      Group   @relation(fields: [groupId], references: [id])
+  userId     String? // null si participante falso
+  user       User?   @relation("UserMember", fields: [userId], references: [id])
+  displayName String
+  weight     Decimal? @db.Decimal(8,4)
+  role       String   @default("member") // 'member' | 'admin'
+
+  expensesAsPayer GroupExpense[] @relation("PayerRelation")
+  splits          GroupSplit[]
+  settlementsFrom GroupSettlement[] @relation("FromMember")
+  settlementsTo   GroupSettlement[] @relation("ToMember")
+}
+
+model GroupExpense {
+  id            String   @id @default(uuid())
+  groupId       String
+  group         Group    @relation(fields: [groupId], references: [id])
+  payerMemberId String
+  payer         GroupMember @relation("PayerRelation", fields: [payerMemberId], references: [id])
+  amount        Decimal  @db.Decimal(12,2)
+  description   String?
+  occurredAt    DateTime
+  splitMethod   String   // 'equal' | 'weights'
+
+  splits        GroupSplit[]
+}
+
+model GroupSplit {
+  id         String   @id @default(uuid())
+  expenseId  String
+  expense    GroupExpense @relation(fields: [expenseId], references: [id])
+  memberId   String
+  member     GroupMember  @relation(fields: [memberId], references: [id])
+  shareAmount Decimal? @db.Decimal(12,2)
+  shareWeight Decimal? @db.Decimal(8,4)
+}
+
+model GroupSettlement {
+  id            String   @id @default(uuid())
+  groupId       String
+  group         Group    @relation(fields: [groupId], references: [id])
+  fromMemberId  String
+  fromMember    GroupMember @relation("FromMember", fields: [fromMemberId], references: [id])
+  toMemberId    String
+  toMember      GroupMember @relation("ToMember", fields: [toMemberId], references: [id])
+  amount        Decimal  @db.Decimal(12,2)
+  occurredAt    DateTime
+  status        String   @default("proposed") // 'proposed' | 'confirmed' | 'cancelled'
+}
