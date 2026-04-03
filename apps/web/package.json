@@ -13,11 +13,9 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@types/node": "^20.19.39",
+    "vite": "^5.1.4",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
-    "@vitejs/plugin-react": "^4.7.0",
-    "typescript": "^5.4.2",
-    "vite": "^5.1.4"
+    "typescript": "^5.4.2"
   }
 }

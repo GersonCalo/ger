@@ -1,12 +1,11 @@
 import React from 'react'
-import { Layout } from '@/components/Layout'
-import { Home } from '@/pages/Home'
 
 function App() {
   return (
-    <Layout>
-      <Home />
-    </Layout>
+    <div style={{ padding: 24, fontFamily: 'system-ui' }}>
+      <h1>Finanzas personales y gastos compartidos</h1>
+      <p>Frontend inicial. API prevista en http://localhost:8080</p>
+    </div>
   )
 }
 
