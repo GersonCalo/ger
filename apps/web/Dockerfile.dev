@@ -1,8 +1,16 @@
 FROM node:20-alpine
-WORKDIR /usr/src/app/apps/web
-COPY apps/web/package.json apps/web/tsconfig.json apps/web/vite.config.ts ./ 
-COPY apps/web/index.html ./index.html
-COPY apps/web/src ./src
+WORKDIR /usr/src/app
+
+# Aprovechar la caché copiando solo dependencias
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
 RUN npm install
+
+# Luego copiamos el código fuente de web
+COPY apps/web ./apps/web
+
 EXPOSE 3000
-CMD ["npm","run","dev","--","--host","0.0.0.0","--port","3000"]
+
+# Usar los scripts de workspace para ejecutar
+CMD ["npm", "run", "dev", "--workspace=apps/web", "--", "--host", "0.0.0.0"]
