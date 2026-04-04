@@ -49,7 +49,7 @@ const calculateGroupNetForMembership = (membership: UserGroupMembership) => {
       id: expense.id,
       payerMemberId: expense.payerMemberId,
       amount: Number(expense.amount.toString()),
-      splitMethod: expense.splitMethod as 'equal' | 'weights',
+      splitMethod: expense.splitMethod as 'equal' | 'manual' | 'weights',
       splits: expense.splits.map(split => ({
         memberId: split.memberId,
         shareAmount: toNumber(split.shareAmount),

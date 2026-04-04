@@ -40,6 +40,9 @@ Notas:
 - `GET /groups/:id/balances` devuelve miembros, gastos, liquidaciones, balances y sugerencias de liquidación.
 - `POST /groups/join-by-code` crea un miembro real para el usuario autenticado usando un código fijo del grupo.
 - `GET /groups/:id/join-code` expone el código del grupo para admins.
+- `POST /groups/:id/expenses` y `PUT /groups/:id/expenses/:eid` soportan reparto `equal` y reparto manual por importes exactos por miembro.
+- En reparto manual la suma de los `shareAmount` de todos los miembros debe coincidir exactamente con el total del gasto.
+- La edición de gastos está permitida al admin del grupo y también al pagador del gasto.
 - `POST /groups/:id/settlements` registra una liquidación aplicada al balance desde el momento de creación.
 - El usuario autenticado solo puede registrar liquidaciones saliendo de su propio balance como deudor.
 - Las sugerencias de liquidación sirven como atajo de ejecución, pero la UI mantiene también el registro manual de importes parciales.

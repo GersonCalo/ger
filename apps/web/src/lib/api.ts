@@ -5,6 +5,7 @@ import type {
   GlobalBalancePayload,
   GroupBalancesPayload,
   GroupExpense,
+  GroupExpenseSplitInput,
   GroupJoinCodePayload,
   GroupMember,
   GroupSettlement,
@@ -154,11 +155,34 @@ export const api = {
       amount: number;
       description?: string;
       occurredAt: string;
-      splitMethod: 'equal' | 'weights';
+      splitMethod: 'equal' | 'manual';
+      splits?: GroupExpenseSplitInput[];
     }
   ) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/expenses`, {
       method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ expense: GroupExpense }>(response);
+    return data.expense;
+  },
+  async updateGroupExpense(
+    token: string,
+    groupId: string,
+    expenseId: string,
+    input: {
+      payerMemberId: string;
+      amount: number;
+      description?: string;
+      occurredAt: string;
+      splitMethod: 'equal' | 'manual';
+      splits?: GroupExpenseSplitInput[];
+    }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/expenses/${expenseId}`, {
+      method: 'PUT',
       headers: createHeaders(token),
       body: JSON.stringify(input),
     });

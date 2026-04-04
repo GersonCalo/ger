@@ -74,13 +74,29 @@ const updateMemberSchema = z
     message: 'No hay cambios para actualizar',
   });
 
-const expenseSchema = z.object({
-  payerMemberId: z.string().uuid(),
-  amount: positiveAmountSchema,
-  description: z.string().trim().optional(),
-  occurredAt: z.string().datetime().optional(),
-  splitMethod: z.enum(['equal', 'weights']),
+const manualSplitSchema = z.object({
+  memberId: z.string().uuid(),
+  shareAmount: positiveAmountSchema,
 });
+
+const expenseSchema = z
+  .object({
+    payerMemberId: z.string().uuid(),
+    amount: positiveAmountSchema,
+    description: z.string().trim().optional(),
+    occurredAt: z.string().datetime().optional(),
+    splitMethod: z.enum(['equal', 'manual']),
+    splits: z.array(manualSplitSchema).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.splitMethod === 'manual' && (!value.splits || value.splits.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Debes indicar splits para el reparto personalizado',
+        path: ['splits'],
+      });
+    }
+  });
 
 const settlementSchema = z.object({
   fromMemberId: z.string().uuid(),
@@ -231,11 +247,22 @@ const resolveMemberDisplayName = async (input: z.infer<typeof groupMemberInputSc
   } as { displayName: string; error?: never };
 };
 
+type ExpenseSplitDraft = {
+  memberId: string;
+  shareAmount: number;
+  shareWeight: number | null;
+};
+
+type ExpenseSplitBuildResult =
+  | { splits: ExpenseSplitDraft[]; error?: never }
+  | { error: string; splits?: never };
+
 const buildExpenseSplits = (
   amount: number,
-  splitMethod: 'equal' | 'weights',
-  members: Array<{ id: string; weight: { toString(): string } | null }>
-) => {
+  splitMethod: 'equal' | 'manual',
+  members: Array<{ id: string; weight: { toString(): string } | null }>,
+  manualSplits?: Array<z.infer<typeof manualSplitSchema>>
+): ExpenseSplitBuildResult => {
   const memberIds = [...members].sort((a, b) => a.id.localeCompare(b.id));
   const amountCents = toCents(amount);
 
@@ -243,45 +270,63 @@ const buildExpenseSplits = (
     const baseShare = Math.floor(amountCents / (memberIds.length || 1));
     let remainder = amountCents - baseShare * memberIds.length;
 
-    return memberIds.map(member => {
-      const shareCents = baseShare + (remainder > 0 ? 1 : 0);
-      remainder = Math.max(0, remainder - 1);
+    return {
+      splits: memberIds.map(member => {
+        const shareCents = baseShare + (remainder > 0 ? 1 : 0);
+        remainder = Math.max(0, remainder - 1);
 
-      return {
-        memberId: member.id,
-        shareAmount: fromCents(shareCents),
-        shareWeight: null,
-      };
-    });
+        return {
+          memberId: member.id,
+          shareAmount: fromCents(shareCents),
+          shareWeight: null,
+        };
+      }),
+    };
   }
 
-  const weights = memberIds.map(member => {
-    const value = member.weight == null ? 1 : Number(member.weight.toString());
-    return Number.isFinite(value) && value > 0 ? value : 1;
-  });
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || memberIds.length || 1;
+  if (!manualSplits || manualSplits.length !== memberIds.length) {
+    return { error: 'Debes indicar un importe para cada miembro del grupo' };
+  }
 
-  let assigned = 0;
+  const validMemberIds = new Set(memberIds.map(member => member.id));
+  const seenMemberIds = new Set<string>();
+  const splitAmounts = new Map<string, number>();
+  let assignedCents = 0;
 
-  return memberIds.map((member, index) => {
-    if (index === memberIds.length - 1) {
-      const shareCents = amountCents - assigned;
-      return {
-        memberId: member.id,
-        shareAmount: fromCents(shareCents),
-        shareWeight: weights[index],
-      };
+  for (const split of manualSplits) {
+    if (!validMemberIds.has(split.memberId)) {
+      return { error: 'Todos los importes deben corresponder a miembros reales del grupo' };
     }
 
-    const shareCents = Math.floor((amountCents * weights[index]) / totalWeight);
-    assigned += shareCents;
+    if (seenMemberIds.has(split.memberId)) {
+      return { error: 'No puedes repetir miembros en el reparto personalizado' };
+    }
 
-    return {
+    const shareAmount = normalizeAmount(split.shareAmount);
+    if (!shareAmount) {
+      return { error: 'Cada importe del reparto personalizado debe ser mayor que 0' };
+    }
+
+    seenMemberIds.add(split.memberId);
+    splitAmounts.set(split.memberId, shareAmount);
+    assignedCents += toCents(shareAmount);
+  }
+
+  if (seenMemberIds.size !== memberIds.length) {
+    return { error: 'Debes indicar el reparto para todos los miembros del grupo' };
+  }
+
+  if (assignedCents !== amountCents) {
+    return { error: 'La suma del reparto personalizado debe coincidir exactamente con el gasto total' };
+  }
+
+  return {
+    splits: memberIds.map(member => ({
       memberId: member.id,
-      shareAmount: fromCents(shareCents),
-      shareWeight: weights[index],
-    };
-  });
+      shareAmount: splitAmounts.get(member.id) || 0,
+      shareWeight: null,
+    })),
+  };
 };
 
 groupsRouter.get('/groups', requireAuth, async (_req, res) => {
@@ -806,7 +851,10 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     return res.status(400).json({ message: 'El pagador no pertenece al grupo' });
   }
 
-  const splits = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members);
+  const splitResult = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members, parsed.data.splits);
+  if (splitResult.error) {
+    return res.status(400).json({ message: splitResult.error });
+  }
 
   const expense = await prisma.groupExpense.create({
     data: {
@@ -817,7 +865,7 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
       occurredAt,
       splitMethod: parsed.data.splitMethod,
       splits: {
-        create: splits,
+        create: splitResult.splits,
       },
     },
     select: {
@@ -843,7 +891,7 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
 
 groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const access = await assertAdminGroup(req.params.id, userId);
+  const access = await assertAccessibleGroup(req.params.id, userId);
 
   if (access.error) {
     return res.status(access.error.status).json(access.error.body);
@@ -859,11 +907,21 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
       id: req.params.eid,
       groupId: access.group.id,
     },
-    select: { id: true },
+    select: { id: true, payerMemberId: true },
   });
 
   if (!expense) {
     return res.status(404).json({ message: 'Gasto no encontrado' });
+  }
+
+  const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
+  const canEditExpense =
+    access.group.ownerUserId === userId ||
+    requesterMember?.role === 'admin' ||
+    requesterMember?.id === expense.payerMemberId;
+
+  if (!canEditExpense) {
+    return res.status(403).json({ message: 'No autorizado para editar este gasto' });
   }
 
   const amount = normalizeAmount(parsed.data.amount);
@@ -881,7 +939,10 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
     return res.status(400).json({ message: 'El pagador no pertenece al grupo' });
   }
 
-  const splits = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members);
+  const splitResult = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members, parsed.data.splits);
+  if (splitResult.error) {
+    return res.status(400).json({ message: splitResult.error });
+  }
 
   const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.groupSplit.deleteMany({
@@ -897,7 +958,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
         occurredAt,
         splitMethod: parsed.data.splitMethod,
         splits: {
-          create: splits,
+          create: splitResult.splits,
         },
       },
       select: {
@@ -1037,7 +1098,7 @@ groupsRouter.get('/groups/:id/balances', requireAuth, async (req, res) => {
       id: expense.id,
       payerMemberId: expense.payerMemberId,
       amount: Number(expense.amount.toString()),
-      splitMethod: expense.splitMethod as 'equal' | 'weights',
+      splitMethod: expense.splitMethod as 'equal' | 'manual' | 'weights',
       splits: expense.splits.map((split: {
         memberId: string;
         shareAmount: { toString(): string } | null;
@@ -1186,7 +1247,7 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
       id: expense.id,
       payerMemberId: expense.payerMemberId,
       amount: Number(expense.amount.toString()),
-      splitMethod: expense.splitMethod as 'equal' | 'weights',
+      splitMethod: expense.splitMethod as 'equal' | 'manual' | 'weights',
       splits: expense.splits.map((split: {
         memberId: string;
         shareAmount: { toString(): string } | null;

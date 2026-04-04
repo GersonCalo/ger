@@ -7,6 +7,7 @@ import type {
   AuthUser,
   GlobalBalancePayload,
   GroupBalancesPayload,
+  GroupExpenseSplitInput,
   GroupSummary,
   Transaction,
 } from '@/types';
@@ -443,7 +444,8 @@ export const useFinanceApp = () => {
       description: string;
       amount: number;
       payerMemberId: string;
-      splitMethod: 'equal' | 'weights';
+      splitMethod: 'equal' | 'manual';
+      splits?: GroupExpenseSplitInput[];
     }) => {
       if (!token) return;
 
@@ -457,11 +459,47 @@ export const useFinanceApp = () => {
           description: input.description,
           occurredAt: new Date().toISOString(),
           splitMethod: input.splitMethod,
+          splits: input.splits,
         });
 
         await Promise.all([refreshGroups(), refreshSelectedGroup(input.groupId), refreshBalance()]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo registrar el gasto');
+      } finally {
+        setGroupsBusy(false);
+      }
+    },
+    [refreshBalance, refreshGroups, refreshSelectedGroup, token]
+  );
+
+  const updateGroupExpense = useCallback(
+    async (input: {
+      expenseId: string;
+      groupId: string;
+      description: string;
+      amount: number;
+      payerMemberId: string;
+      splitMethod: 'equal' | 'manual';
+      splits?: GroupExpenseSplitInput[];
+    }) => {
+      if (!token) return;
+
+      setGroupsBusy(true);
+      setGroupsError(null);
+
+      try {
+        await api.updateGroupExpense(token, input.groupId, input.expenseId, {
+          payerMemberId: input.payerMemberId,
+          amount: input.amount,
+          description: input.description,
+          occurredAt: new Date().toISOString(),
+          splitMethod: input.splitMethod,
+          splits: input.splits,
+        });
+
+        await Promise.all([refreshGroups(), refreshSelectedGroup(input.groupId), refreshBalance()]);
+      } catch (error) {
+        setGroupsError(error instanceof Error ? error.message : 'No se pudo actualizar el gasto');
       } finally {
         setGroupsBusy(false);
       }
@@ -602,6 +640,7 @@ export const useFinanceApp = () => {
     setSelectedGroupId,
     transactionError,
     transactions,
+    updateGroupExpense,
     user,
   };
 };

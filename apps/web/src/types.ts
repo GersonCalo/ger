@@ -58,12 +58,17 @@ export type GroupExpenseSplit = {
   shareWeight: number | null;
 };
 
+export type GroupExpenseSplitInput = {
+  memberId: string;
+  shareAmount: number;
+};
+
 export type GroupExpense = {
   id: string;
   description: string | null;
   amount: number;
   payerMemberId: string;
-  splitMethod: 'equal' | 'weights';
+  splitMethod: 'equal' | 'manual' | 'weights';
   occurredAt: string;
   splits: GroupExpenseSplit[];
 };

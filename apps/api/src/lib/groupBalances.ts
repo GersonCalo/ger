@@ -8,7 +8,7 @@ type BalanceExpense = {
   id: string;
   payerMemberId: string;
   amount: number;
-  splitMethod: 'equal' | 'weights';
+  splitMethod: 'equal' | 'manual' | 'weights';
   splits: Array<{
     memberId: string;
     shareAmount: number | null;

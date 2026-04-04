@@ -4,7 +4,7 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { AuthUser, GroupBalancesPayload, GroupSummary } from '@/types';
+import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary } from '@/types';
 
 type GroupsScreenProps = {
   error: string | null;
@@ -17,17 +17,48 @@ type GroupsScreenProps = {
     description: string;
     amount: number;
     payerMemberId: string;
-    splitMethod: 'equal' | 'weights';
+    splitMethod: 'equal' | 'manual';
+    splits?: GroupExpenseSplitInput[];
   }) => Promise<void>;
   onCreateGroup: (input: { name: string; guestMembers: string[] }) => Promise<void>;
   onCreateSettlement: (input: { groupId: string; fromMemberId: string; toMemberId: string; amount: number }) => Promise<void>;
   onJoinByCode: (code: string) => Promise<void>;
   onSelectGroup: (groupId: string) => void;
+  onUpdateExpense: (input: {
+    expenseId: string;
+    groupId: string;
+    description: string;
+    amount: number;
+    payerMemberId: string;
+    splitMethod: 'equal' | 'manual';
+    splits?: GroupExpenseSplitInput[];
+  }) => Promise<void>;
   selectedGroupData: GroupBalancesPayload | null;
   selectedGroupId: string | null;
   selectedGroupJoinCode: string | null;
   user: AuthUser;
 };
+
+const toCents = (amount: number) => Math.round(amount * 100);
+const fromCents = (amount: number) => Number((amount / 100).toFixed(2));
+
+const parseMoneyInput = (value: string) => {
+  const normalizedValue = value.replace(',', '.').trim();
+  if (!normalizedValue) return null;
+  const parsed = Number(normalizedValue);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildManualShareState = (
+  members: Array<{ id: string }>,
+  expense?: Pick<GroupExpense, 'splits'>
+) =>
+  Object.fromEntries(
+    members.map(member => {
+      const split = expense?.splits.find(item => item.memberId === member.id);
+      return [member.id, split?.shareAmount != null ? String(split.shareAmount) : ''];
+    })
+  ) as Record<string, string>;
 
 export const GroupsScreen = ({
   error,
@@ -40,6 +71,7 @@ export const GroupsScreen = ({
   onCreateSettlement,
   onJoinByCode,
   onSelectGroup,
+  onUpdateExpense,
   selectedGroupData,
   selectedGroupId,
   selectedGroupJoinCode,
@@ -52,7 +84,9 @@ export const GroupsScreen = ({
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [payerMemberId, setPayerMemberId] = useState('');
-  const [splitMethod, setSplitMethod] = useState<'equal' | 'weights'>('equal');
+  const [splitMethod, setSplitMethod] = useState<'equal' | 'manual'>('equal');
+  const [manualShares, setManualShares] = useState<Record<string, string>>({});
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementFromId, setSettlementFromId] = useState('');
   const [settlementToId, setSettlementToId] = useState('');
@@ -64,6 +98,7 @@ export const GroupsScreen = ({
 
   const summary = selectedGroup ? summarizeTransactions(selectedGroup) : { total: 0, count: 0 };
   const balances = selectedGroupData?.balances || [];
+  const expenses = selectedGroupData?.expenses || selectedGroup?.expenses || [];
   const suggestions = selectedGroupData?.suggestions || [];
   const settlements = selectedGroupData?.settlements || [];
   const currentUserMember =
@@ -75,6 +110,35 @@ export const GroupsScreen = ({
   const availableSettlementTargets = selectedGroupData?.members.filter(member =>
     creditorBalances.some(balance => balance.memberId === member.id)
   ) || [];
+  const expenseAmountValue = parseMoneyInput(expenseAmount);
+  const manualSplitDrafts = (selectedGroupData?.members || []).map(member => {
+    const rawValue = manualShares[member.id] || '';
+    const parsedValue = parseMoneyInput(rawValue);
+
+    return {
+      member,
+      rawValue,
+      parsedValue,
+      cents: parsedValue != null ? toCents(parsedValue) : null,
+    };
+  });
+  const manualAssignedCents = manualSplitDrafts.reduce((sum, split) => sum + (split.cents ?? 0), 0);
+  const totalExpenseCents = expenseAmountValue != null && expenseAmountValue > 0 ? toCents(expenseAmountValue) : 0;
+  const manualRemainingCents = totalExpenseCents - manualAssignedCents;
+  const manualAllMembersFilled =
+    manualSplitDrafts.length > 0 && manualSplitDrafts.every(split => split.parsedValue != null && split.parsedValue > 0);
+  const manualSplitIsValid =
+    splitMethod === 'equal' ||
+    (expenseAmountValue != null &&
+      expenseAmountValue > 0 &&
+      manualAllMembersFilled &&
+      manualRemainingCents === 0 &&
+      manualSplitDrafts.length === (selectedGroupData?.members.length || 0));
+  const editableExpenseIds = new Set(
+    expenses
+      .filter(expense => currentUserMember && (currentUserMember.role === 'admin' || currentUserMember.id === expense.payerMemberId))
+      .map(expense => expense.id)
+  );
 
   useEffect(() => {
     if (!groups.length) {
@@ -90,6 +154,10 @@ export const GroupsScreen = ({
     if (!selectedGroupData) return;
 
     setPayerMemberId(current => current || selectedGroupData.members[0]?.id || '');
+    setManualShares(current => {
+      const hasCurrentMembers = selectedGroupData.members.every(member => member.id in current);
+      return hasCurrentMembers ? current : buildManualShareState(selectedGroupData.members);
+    });
     setSettlementFromId(currentUserMember?.id || '');
     setSettlementToId(current => {
       if (
@@ -104,6 +172,55 @@ export const GroupsScreen = ({
       return suggestedTargetId || availableSettlementTargets[0]?.id || '';
     });
   }, [availableSettlementTargets, currentUserMember?.id, selectedGroupData, suggestions]);
+
+  useEffect(() => {
+    if (!selectedGroupData) return;
+    setEditingExpenseId(null);
+    setExpenseDescription('');
+    setExpenseAmount('');
+    setSplitMethod('equal');
+    setManualShares(buildManualShareState(selectedGroupData.members));
+    setPayerMemberId(selectedGroupData.members[0]?.id || '');
+  }, [selectedGroupData?.group.id]);
+
+  const resetExpenseForm = () => {
+    setEditingExpenseId(null);
+    setExpenseDescription('');
+    setExpenseAmount('');
+    setSplitMethod('equal');
+    setManualShares(buildManualShareState(selectedGroupData?.members || selectedGroup?.members || []));
+    setPayerMemberId(selectedGroupData?.members[0]?.id || selectedGroup?.members[0]?.id || '');
+  };
+
+  const applyRemainingToLastMember = () => {
+    if (!selectedGroupData?.members.length || expenseAmountValue == null || expenseAmountValue <= 0) return;
+
+    const targetMember = selectedGroupData.members[selectedGroupData.members.length - 1];
+    const otherMembersCents = manualSplitDrafts.reduce((sum, split) => {
+      if (split.member.id === targetMember.id) {
+        return sum;
+      }
+
+      return sum + (split.cents ?? 0);
+    }, 0);
+    const remainingCents = totalExpenseCents - otherMembersCents;
+
+    setManualShares(current => ({
+      ...current,
+      [targetMember.id]: remainingCents > 0 ? String(fromCents(remainingCents)) : current[targetMember.id] || '',
+    }));
+  };
+
+  const startEditingExpense = (expense: GroupExpense) => {
+    if (!selectedGroupData) return;
+
+    setEditingExpenseId(expense.id);
+    setExpenseDescription(expense.description || '');
+    setExpenseAmount(String(expense.amount));
+    setPayerMemberId(expense.payerMemberId);
+    setSplitMethod(expense.splitMethod === 'equal' ? 'equal' : 'manual');
+    setManualShares(buildManualShareState(selectedGroupData.members, expense));
+  };
 
   return (
     <div className="screen-stack">
@@ -183,7 +300,7 @@ export const GroupsScreen = ({
         <SectionCard>
           <EmptyState
             title="Todavía no hay grupos"
-            description="Crea un grupo para repartir gastos equitativos o por pesos desde esta misma pantalla."
+            description="Crea un grupo para repartir gastos equitativos o personalizados desde esta misma pantalla."
           />
         </SectionCard>
       ) : (
@@ -288,18 +405,41 @@ export const GroupsScreen = ({
                     const amount = Number(expenseAmount);
                     const defaultPayer = payerMemberId || selectedGroup.members[0]?.id;
 
-                    if (!expenseDescription.trim() || !defaultPayer || !Number.isFinite(amount) || amount <= 0) return;
+                    if (!expenseDescription.trim() || !defaultPayer || !Number.isFinite(amount) || amount <= 0) {
+                      return;
+                    }
 
-                    await onAddExpense({
+                    const manualSplits =
+                      splitMethod === 'manual'
+                        ? manualSplitDrafts.map(split => ({
+                            memberId: split.member.id,
+                            shareAmount: split.parsedValue || 0,
+                          }))
+                        : undefined;
+
+                    if (!manualSplitIsValid) {
+                      return;
+                    }
+
+                    const expenseInput = {
                       groupId: selectedGroup.id,
                       description: expenseDescription.trim(),
                       amount,
                       payerMemberId: defaultPayer,
                       splitMethod,
-                    });
+                      splits: manualSplits,
+                    } as const;
 
-                    setExpenseDescription('');
-                    setExpenseAmount('');
+                    if (editingExpenseId) {
+                      await onUpdateExpense({
+                        expenseId: editingExpenseId,
+                        ...expenseInput,
+                      });
+                    } else {
+                      await onAddExpense(expenseInput);
+                    }
+
+                    resetExpenseForm();
                   }}
                 >
                   <label className="field">
@@ -351,16 +491,60 @@ export const GroupsScreen = ({
                     </button>
                     <button
                       type="button"
-                      className={`segmented-control__item ${splitMethod === 'weights' ? 'segmented-control__item--active' : ''}`}
-                      onClick={() => setSplitMethod('weights')}
+                      className={`segmented-control__item ${splitMethod === 'manual' ? 'segmented-control__item--active' : ''}`}
+                      onClick={() => setSplitMethod('manual')}
                     >
-                      Por pesos
+                      Personalizado
                     </button>
                   </div>
 
-                  <button type="submit" className="button button--primary">
-                    {groupsBusy ? 'Guardando...' : 'Añadir gasto'}
-                  </button>
+                  {splitMethod === 'manual' ? (
+                    <div className="form-stack">
+                      {manualSplitDrafts.map(split => (
+                        <label key={split.member.id} className="field">
+                          <span className="field__label">{split.member.displayName}</span>
+                          <input
+                            className="field__input"
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={split.rawValue}
+                            onChange={event =>
+                              setManualShares(current => ({
+                                ...current,
+                                [split.member.id]: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                      ))}
+                      <div className="list-row">
+                        <div>
+                          <div className="list-row__title">Reparto asignado</div>
+                          <div className="list-row__meta">
+                            Total {formatMoney(expenseAmountValue || 0, selectedGroup.currency)} · Asignado{' '}
+                            {formatMoney(fromCents(manualAssignedCents), selectedGroup.currency)} · Restante{' '}
+                            {formatMoney(fromCents(manualRemainingCents), selectedGroup.currency)}
+                          </div>
+                        </div>
+                        <button type="button" className="button button--ghost button--small" onClick={applyRemainingToLastMember}>
+                          Completar resto
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="list-row__content">
+                    <button type="submit" className="button button--primary" disabled={splitMethod === 'manual' && !manualSplitIsValid}>
+                      {groupsBusy ? 'Guardando...' : editingExpenseId ? 'Guardar cambios' : 'Añadir gasto'}
+                    </button>
+                    {editingExpenseId ? (
+                      <button type="button" className="button button--ghost" onClick={resetExpenseForm}>
+                        Cancelar edición
+                      </button>
+                    ) : null}
+                  </div>
                 </form>
               </SectionCard>
 
@@ -534,22 +718,34 @@ export const GroupsScreen = ({
               </SectionCard>
 
               <SectionCard title="Gastos del grupo" subtitle="Últimos gastos registrados.">
-                {selectedGroup.expenses.length === 0 ? (
+                {expenses.length === 0 ? (
                   <EmptyState title="Aún no hay gastos" description="Añade el primer gasto del grupo para empezar a repartir." />
                 ) : (
                   <div className="list-stack">
-                    {selectedGroup.expenses.map(expense => {
+                    {expenses.map(expense => {
                       const payer = selectedGroup.members.find(member => member.id === expense.payerMemberId);
+                      const splitLabel = expense.splitMethod === 'equal' ? 'Equitativo' : 'Personalizado';
                       return (
                         <article key={expense.id} className="list-row list-row--stacked">
                           <div className="list-row__content">
                             <div className="list-row__title">{expense.description || 'Gasto compartido'}</div>
                             <div className="list-row__meta">
-                              {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'}
+                              {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'} · Reparto {splitLabel}
                             </div>
                           </div>
-                          <div className="amount-pill amount-pill--accent">
-                            {formatMoney(expense.amount, selectedGroup.currency)}
+                          <div className="list-row__content">
+                            <div className="amount-pill amount-pill--accent">
+                              {formatMoney(expense.amount, selectedGroup.currency)}
+                            </div>
+                            {editableExpenseIds.has(expense.id) ? (
+                              <button
+                                type="button"
+                                className="button button--ghost button--small"
+                                onClick={() => startEditingExpense(expense)}
+                              >
+                                Editar
+                              </button>
+                            ) : null}
                           </div>
                         </article>
                       );

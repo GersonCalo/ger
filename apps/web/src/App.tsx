@@ -123,6 +123,7 @@ function App() {
           onCreateSettlement={financeApp.createSettlement}
           onJoinByCode={financeApp.joinGroupByCode}
           onSelectGroup={financeApp.setSelectedGroupId}
+          onUpdateExpense={financeApp.updateGroupExpense}
           selectedGroupData={financeApp.selectedGroupData}
           selectedGroupId={financeApp.selectedGroupId}
           selectedGroupJoinCode={financeApp.selectedGroupJoinCode}
