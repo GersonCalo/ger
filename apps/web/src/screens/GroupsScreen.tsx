@@ -78,6 +78,7 @@ export const GroupsScreen = ({
   user,
 }: GroupsScreenProps) => {
   const [view, setView] = useState<'list' | 'detail'>('list');
+  const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
   const [showGroupActions, setShowGroupActions] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [guestMembers, setGuestMembers] = useState('');
@@ -105,9 +106,8 @@ export const GroupsScreen = ({
     null;
   const currentUserBalance = balances.find(balance => balance.memberId === currentUserMember?.id) || null;
   const creditorBalances = balances.filter(balance => balance.net > 0 && balance.memberId !== currentUserMember?.id);
-  const availableSettlementTargets = selectedGroupData?.members.filter(member =>
-    creditorBalances.some(balance => balance.memberId === member.id)
-  ) || [];
+  const availableSettlementTargets =
+    selectedGroupData?.members.filter(member => creditorBalances.some(balance => balance.memberId === member.id)) || [];
   const expenseAmountValue = parseMoneyInput(expenseAmount);
   const manualSplitDrafts = (selectedGroupData?.members || []).map(member => {
     const rawValue = manualShares[member.id] || '';
@@ -168,6 +168,7 @@ export const GroupsScreen = ({
 
   useEffect(() => {
     if (!selectedGroupData) return;
+    setDetailTab('summary');
     setEditingExpenseId(null);
     setExpenseDescription('');
     setExpenseAmount('');
@@ -220,662 +221,619 @@ export const GroupsScreen = ({
     setPayerMemberId(expense.payerMemberId);
     setSplitMethod(expense.splitMethod === 'equal' ? 'equal' : 'manual');
     setManualShares(buildManualShareState(selectedGroupData.members, expense));
+    setDetailTab('expenses');
   };
 
   const openGroupDetail = (groupId: string) => {
     onSelectGroup(groupId);
+    setDetailTab('summary');
     setView('detail');
   };
 
   return (
     <div className="screen-stack">
       {view === 'list' ? (
-        <>
-          <section className="screen-intro">
-            <div className="screen-intro__eyebrow">Vista general</div>
-            <h2 className="screen-intro__title">Tus grupos, de un vistazo</h2>
-            <p className="screen-intro__body">
-              Entra solo al detalle que necesites. Crear un grupo o unirte por código queda disponible como acción secundaria.
-            </p>
-            <div className="screen-intro__actions">
-              <button type="button" className="button button--primary button--small" onClick={() => setShowGroupActions(current => !current)}>
-                {showGroupActions ? 'Ocultar acciones' : 'Crear o unirme'}
-              </button>
-            </div>
-          </section>
-
+        <SectionCard
+          title="Tus grupos"
+          action={
+            <button type="button" className="button button--ghost button--small" onClick={() => setShowGroupActions(current => !current)}>
+              {showGroupActions ? 'Cerrar' : 'Crear o unirme'}
+            </button>
+          }
+        >
           {showGroupActions ? (
-            <SectionCard title="Acciones de grupos" subtitle="Crea un grupo nuevo o entra con un código existente.">
-              <div className="section-split">
-                <form
-                  className="form-stack"
-                  onSubmit={async event => {
-                    event.preventDefault();
-                    const members = guestMembers
-                      .split(',')
-                      .map(member => member.trim())
-                      .filter(Boolean);
+            <div className="section-split">
+              <form
+                className="form-stack"
+                onSubmit={async event => {
+                  event.preventDefault();
+                  const members = guestMembers
+                    .split(',')
+                    .map(member => member.trim())
+                    .filter(Boolean);
 
-                    if (!groupName.trim()) return;
+                  if (!groupName.trim()) return;
 
-                    await onCreateGroup({ name: groupName.trim(), guestMembers: members });
-                    setGroupName('');
-                    setGuestMembers('');
-                    setShowGroupActions(false);
-                  }}
-                >
-                  <label className="field">
-                    <span className="field__label">Nombre del grupo</span>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="Piso, viaje, pareja..."
-                      value={groupName}
-                      onChange={event => setGroupName(event.target.value)}
-                    />
-                  </label>
+                  await onCreateGroup({ name: groupName.trim(), guestMembers: members });
+                  setGroupName('');
+                  setGuestMembers('');
+                  setShowGroupActions(false);
+                }}
+              >
+                <label className="field">
+                  <span className="field__label">Nombre del grupo</span>
+                  <input
+                    className="field__input"
+                    type="text"
+                    placeholder="Piso, viaje, pareja..."
+                    value={groupName}
+                    onChange={event => setGroupName(event.target.value)}
+                  />
+                </label>
 
-                  <label className="field">
-                    <span className="field__label">Invitados</span>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="Lucía, Dani, Ana"
-                      value={guestMembers}
-                      onChange={event => setGuestMembers(event.target.value)}
-                    />
-                  </label>
+                <label className="field">
+                  <span className="field__label">Invitados</span>
+                  <input
+                    className="field__input"
+                    type="text"
+                    placeholder="Lucía, Dani, Ana"
+                    value={guestMembers}
+                    onChange={event => setGuestMembers(event.target.value)}
+                  />
+                </label>
 
-                  <button type="submit" className="button button--primary">
-                    {groupsBusy ? 'Guardando...' : 'Crear grupo'}
-                  </button>
-                </form>
+                <button type="submit" className="button button--primary">
+                  {groupsBusy ? 'Guardando...' : 'Crear grupo'}
+                </button>
+              </form>
 
-                <form
-                  className="form-stack"
-                  onSubmit={async event => {
-                    event.preventDefault();
-                    if (!joinCode.trim()) return;
-                    await onJoinByCode(joinCode.trim());
-                    setJoinCode('');
-                    setShowGroupActions(false);
-                  }}
-                >
-                  <label className="field">
-                    <span className="field__label">Código del grupo</span>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="ABCD1234"
-                      value={joinCode}
-                      onChange={event => setJoinCode(event.target.value.toUpperCase())}
-                    />
-                  </label>
+              <form
+                className="form-stack"
+                onSubmit={async event => {
+                  event.preventDefault();
+                  if (!joinCode.trim()) return;
+                  await onJoinByCode(joinCode.trim());
+                  setJoinCode('');
+                  setShowGroupActions(false);
+                }}
+              >
+                <label className="field">
+                  <span className="field__label">Código del grupo</span>
+                  <input
+                    className="field__input"
+                    type="text"
+                    placeholder="ABCD1234"
+                    value={joinCode}
+                    onChange={event => setJoinCode(event.target.value.toUpperCase())}
+                  />
+                </label>
 
-                  <button type="submit" className="button button--ghost">
-                    {groupsBusy ? 'Uniendo...' : 'Unirme con código'}
-                  </button>
-                </form>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          {groups.length === 0 ? (
-            <SectionCard>
-              <EmptyState
-                title="Todavía no hay grupos"
-                description="Empieza creando uno nuevo o usa un código para entrar en un grupo existente."
-              />
-            </SectionCard>
+                <button type="submit" className="button button--ghost">
+                  {groupsBusy ? 'Uniendo...' : 'Unirme con código'}
+                </button>
+              </form>
+            </div>
+          ) : groups.length === 0 ? (
+            <EmptyState title="Todavía no hay grupos" description="Crea uno nuevo o entra con un código." />
           ) : (
             <>
               <div className="stats-grid">
                 <StatCard label="Tus grupos" value={`${groups.length}`} />
                 <StatCard label="Total movimientos" value={`${groups.reduce((sum, group) => sum + group.expensesCount, 0)}`} />
               </div>
+              {notice ? <div className="list-row__meta">{notice}</div> : null}
+              <div className="group-list">
+                {groups.map(group => {
+                  const groupSummary = summarizeTransactions(group);
 
-              <SectionCard title="Listado de grupos" subtitle={notice || 'Selecciona un grupo para abrir su detalle.'}>
-                <div className="group-list">
-                  {groups.map(group => {
-                    const groupSummary = summarizeTransactions(group);
-
-                    return (
-                      <button key={group.id} type="button" className="group-card" onClick={() => openGroupDetail(group.id)}>
-                        <div className="group-card__header">
-                          <div>
-                            <div className="group-card__name">{group.name}</div>
-                            <div className="group-card__meta">
-                              {group.membersCount} miembros · {group.expensesCount} gastos
-                            </div>
+                  return (
+                    <button key={group.id} type="button" className="group-card" onClick={() => openGroupDetail(group.id)}>
+                      <div className="group-card__header">
+                        <div>
+                          <div className="group-card__name">{group.name}</div>
+                          <div className="group-card__meta">
+                            {group.membersCount} miembros · {group.expensesCount} gastos
                           </div>
-                          <div className="amount-pill amount-pill--accent">{group.currency}</div>
                         </div>
-                        <div className="group-card__stats">
-                          <span>Total {formatMoney(groupSummary.total, group.currency)}</span>
-                          <span>Actividad {groupSummary.count}</span>
-                          <span>Creado {formatDate(group.createdAt)}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </SectionCard>
+                        <div className="amount-pill amount-pill--accent">{group.currency}</div>
+                      </div>
+                      <div className="group-card__stats">
+                        <span>Total {formatMoney(groupSummary.total, group.currency)}</span>
+                        <span>Actividad {groupSummary.count}</span>
+                        <span>Creado {formatDate(group.createdAt)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
-        </>
+        </SectionCard>
       ) : selectedGroup ? (
         <>
           <div className="detail-toolbar">
-            <button type="button" className="button button--ghost button--small" onClick={() => setView('list')}>
-              Volver a grupos
-            </button>
-            <button type="button" className="button button--ghost button--small" onClick={() => setShowGroupActions(current => !current)}>
-              Acciones
-            </button>
-          </div>
-
-          {showGroupActions ? (
-            <SectionCard title="Acciones secundarias" subtitle="Crea otro grupo o entra en uno nuevo sin salir del detalle actual.">
-              <div className="section-split">
-                <form
-                  className="form-stack"
-                  onSubmit={async event => {
-                    event.preventDefault();
-                    const members = guestMembers
-                      .split(',')
-                      .map(member => member.trim())
-                      .filter(Boolean);
-
-                    if (!groupName.trim()) return;
-
-                    await onCreateGroup({ name: groupName.trim(), guestMembers: members });
-                    setGroupName('');
-                    setGuestMembers('');
-                    setShowGroupActions(false);
-                  }}
-                >
-                  <label className="field">
-                    <span className="field__label">Nombre del grupo</span>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="Piso, viaje, pareja..."
-                      value={groupName}
-                      onChange={event => setGroupName(event.target.value)}
-                    />
-                  </label>
-
-                  <button type="submit" className="button button--primary">
-                    {groupsBusy ? 'Guardando...' : 'Crear grupo'}
-                  </button>
-                </form>
-
-                <form
-                  className="form-stack"
-                  onSubmit={async event => {
-                    event.preventDefault();
-                    if (!joinCode.trim()) return;
-                    await onJoinByCode(joinCode.trim());
-                    setJoinCode('');
-                    setShowGroupActions(false);
-                  }}
-                >
-                  <label className="field">
-                    <span className="field__label">Código del grupo</span>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="ABCD1234"
-                      value={joinCode}
-                      onChange={event => setJoinCode(event.target.value.toUpperCase())}
-                    />
-                  </label>
-
-                  <button type="submit" className="button button--ghost">
-                    {groupsBusy ? 'Uniendo...' : 'Unirme con código'}
-                  </button>
-                </form>
-              </div>
-            </SectionCard>
-          ) : null}
-
-          <section className="detail-hero">
-            <div className="screen-intro__eyebrow">Detalle de grupo</div>
-            <h2 className="screen-intro__title">{selectedGroup.name}</h2>
-            <p className="screen-intro__body">
-              Consulta balances, registra gastos y gestiona pagos solo dentro del grupo que estás revisando.
-            </p>
-          </section>
-
-          <div className="stats-grid">
-            <StatCard label="Total grupo" value={formatMoney(summary.total, selectedGroup.currency)} />
-            <StatCard label="Gastos" value={`${summary.count}`} />
-            <StatCard label="Miembros" value={`${selectedGroup.members.length}`} />
-          </div>
-
-          <SectionCard
-            title="Acceso y participantes"
-            subtitle={
-              selectedGroupJoinCode
-                ? 'Puedes compartir este código con otros usuarios del sistema.'
-                : 'Si necesitas compartir un código, accede con un admin del grupo.'
-            }
-          >
-            <div className="list-stack">
-              {selectedGroupJoinCode ? (
-                <article className="list-row">
-                  <div>
-                    <div className="list-row__title">{selectedGroupJoinCode}</div>
-                    <div className="list-row__meta">Código fijo de acceso</div>
-                  </div>
-                  <button
-                    type="button"
-                    className="button button--ghost button--small"
-                    onClick={() => {
-                      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                        navigator.clipboard.writeText(selectedGroupJoinCode);
-                      }
-                    }}
-                  >
-                    Copiar
-                  </button>
-                </article>
-              ) : null}
-
-              <div className="member-pill-row">
-                {selectedGroup.members.map(member => (
-                  <div key={member.id} className="member-pill">
-                    {member.displayName}
-                  </div>
-                ))}
-              </div>
-
-              <form
-                className="form-stack"
-                onSubmit={async event => {
-                  event.preventDefault();
-                  if (!memberName.trim()) return;
-                  await onAddMember({ groupId: selectedGroup.id, displayName: memberName.trim() });
-                  setMemberName('');
-                }}
-              >
-                <label className="field">
-                  <span className="field__label">Nuevo invitado</span>
-                  <input
-                    className="field__input"
-                    type="text"
-                    placeholder="Añade otro participante"
-                    value={memberName}
-                    onChange={event => setMemberName(event.target.value)}
-                  />
-                </label>
-                <button type="submit" className="button button--ghost">
-                  Añadir miembro
-                </button>
-              </form>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title={editingExpenseId ? 'Editar gasto' : 'Añadir gasto'}
-            subtitle="Registra un gasto con reparto equitativo o personalizado sin salir del detalle."
-          >
-            <form
-              className="form-stack"
-              onSubmit={async event => {
-                event.preventDefault();
-                const amount = Number(expenseAmount);
-                const defaultPayer = payerMemberId || selectedGroup.members[0]?.id;
-
-                if (!expenseDescription.trim() || !defaultPayer || !Number.isFinite(amount) || amount <= 0) {
-                  return;
-                }
-
-                const manualSplits =
-                  splitMethod === 'manual'
-                    ? manualSplitDrafts.map(split => ({
-                        memberId: split.member.id,
-                        shareAmount: split.parsedValue || 0,
-                      }))
-                    : undefined;
-
-                if (!manualSplitIsValid) {
-                  return;
-                }
-
-                const expenseInput = {
-                  groupId: selectedGroup.id,
-                  description: expenseDescription.trim(),
-                  amount,
-                  payerMemberId: defaultPayer,
-                  splitMethod,
-                  splits: manualSplits,
-                } as const;
-
-                if (editingExpenseId) {
-                  await onUpdateExpense({
-                    expenseId: editingExpenseId,
-                    ...expenseInput,
-                  });
-                } else {
-                  await onAddExpense(expenseInput);
-                }
-
-                resetExpenseForm();
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={() => {
+                setDetailTab('summary');
+                setView('list');
               }}
             >
-              <div className="section-split">
-                <label className="field">
-                  <span className="field__label">Concepto</span>
-                  <input
-                    className="field__input"
-                    type="text"
-                    placeholder="Supermercado, gasolina..."
-                    value={expenseDescription}
-                    onChange={event => setExpenseDescription(event.target.value)}
-                  />
-                </label>
+              Volver a grupos
+            </button>
+          </div>
 
-                <label className="field">
-                  <span className="field__label">Monto</span>
-                  <input
-                    className="field__input"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={expenseAmount}
-                    onChange={event => setExpenseAmount(event.target.value)}
-                  />
-                </label>
+          <section className="detail-hero detail-hero--compact">
+            <h2 className="screen-intro__title">{selectedGroup.name}</h2>
+          </section>
+
+          <div className="segmented-control detail-tabs">
+            <button
+              type="button"
+              className={`segmented-control__item ${detailTab === 'summary' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setDetailTab('summary')}
+            >
+              Resumen
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${detailTab === 'expenses' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setDetailTab('expenses')}
+            >
+              Gastos
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${detailTab === 'payments' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setDetailTab('payments')}
+            >
+              Pagos
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${detailTab === 'settings' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setDetailTab('settings')}
+            >
+              Ajustes
+            </button>
+          </div>
+
+          {detailTab === 'summary' ? (
+            <>
+              <div className="stats-grid">
+                <StatCard label="Total" value={formatMoney(summary.total, selectedGroup.currency)} />
+                <StatCard label="Gastos" value={`${summary.count}`} />
+                <StatCard label="Miembros" value={`${selectedGroup.members.length}`} />
               </div>
 
-              <label className="field">
-                <span className="field__label">Pagó</span>
-                <select
-                  className="field__input"
-                  value={payerMemberId || selectedGroup.members[0]?.id || ''}
-                  onChange={event => setPayerMemberId(event.target.value)}
-                >
-                  {selectedGroup.members.map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="segmented-control">
-                <button
-                  type="button"
-                  className={`segmented-control__item ${splitMethod === 'equal' ? 'segmented-control__item--active' : ''}`}
-                  onClick={() => setSplitMethod('equal')}
-                >
-                  Equitativo
-                </button>
-                <button
-                  type="button"
-                  className={`segmented-control__item ${splitMethod === 'manual' ? 'segmented-control__item--active' : ''}`}
-                  onClick={() => setSplitMethod('manual')}
-                >
-                  Personalizado
-                </button>
-              </div>
-
-              {splitMethod === 'manual' ? (
-                <div className="form-stack">
-                  <div className="section-split">
-                    {manualSplitDrafts.map(split => (
-                      <label key={split.member.id} className="field">
-                        <span className="field__label">{split.member.displayName}</span>
-                        <input
-                          className="field__input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={split.rawValue}
-                          onChange={event =>
-                            setManualShares(current => ({
-                              ...current,
-                              [split.member.id]: event.target.value,
-                            }))
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="split-summary">
-                    <div className="split-summary__title">Reparto asignado</div>
-                    <div className="split-summary__meta">
-                      Total {formatMoney(expenseAmountValue || 0, selectedGroup.currency)} · Asignado{' '}
-                      {formatMoney(fromCents(manualAssignedCents), selectedGroup.currency)} · Restante{' '}
-                      {formatMoney(fromCents(manualRemainingCents), selectedGroup.currency)}
-                    </div>
-                    <button type="button" className="button button--ghost button--small" onClick={applyRemainingToLastMember}>
-                      Completar resto
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="form-actions">
-                <button type="submit" className="button button--primary" disabled={splitMethod === 'manual' && !manualSplitIsValid}>
-                  {groupsBusy ? 'Guardando...' : editingExpenseId ? 'Guardar cambios' : 'Añadir gasto'}
-                </button>
-                {editingExpenseId ? (
-                  <button type="button" className="button button--ghost" onClick={resetExpenseForm}>
-                    Cancelar edición
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </SectionCard>
-
-          <SectionCard title="Balances" subtitle="Quién adelantó más y quién tiene que compensar dentro del grupo.">
-            <div className="list-stack">
-              {balances.map(balance => (
-                <article key={balance.memberId} className="list-row">
-                  <div>
-                    <div className="list-row__title">{balance.memberName}</div>
-                    <div className="list-row__meta">
-                      Pagó {formatMoney(balance.paid, selectedGroup.currency)} · Debe {formatMoney(balance.owes, selectedGroup.currency)} ·
-                      Liquidado {formatMoney(balance.settledIn - balance.settledOut, selectedGroup.currency)}
-                    </div>
-                  </div>
-                  <div className={`amount-pill ${balance.net >= 0 ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
-                    {formatMoney(balance.net, selectedGroup.currency)}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Sugerencias de liquidación" subtitle="Atajos para saldar el grupo sin revisar todos los saldos manualmente.">
-            {suggestions.length === 0 ? (
-              <EmptyState title="Todo está equilibrado" description="Cuando existan deudas pendientes aparecerán aquí." />
-            ) : (
-              <div className="list-stack">
-                {suggestions.map((suggestion, index) => (
-                  <article key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${index}`} className="list-row list-row--stacked">
-                    <div className="list-row__content">
-                      <div className="list-row__title">
-                        {suggestion.fromMemberName} → {suggestion.toMemberName}
+              <SectionCard title="Balances">
+                <div className="list-stack">
+                  {balances.map(balance => (
+                    <article key={balance.memberId} className="list-row">
+                      <div>
+                        <div className="list-row__title">{balance.memberName}</div>
+                        <div className="list-row__meta">
+                          Pagó {formatMoney(balance.paid, selectedGroup.currency)} · Debe {formatMoney(balance.owes, selectedGroup.currency)}
+                        </div>
                       </div>
-                      <div className="list-row__meta">Recomendación de liquidación</div>
-                    </div>
-                    <div className="list-actions">
-                      <div className="amount-pill amount-pill--accent">{formatMoney(suggestion.amount, selectedGroup.currency)}</div>
-                      {suggestion.fromMemberId === currentUserMember?.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="button button--primary button--small"
-                            onClick={() =>
-                              onCreateSettlement({
-                                groupId: selectedGroup.id,
-                                fromMemberId: suggestion.fromMemberId,
-                                toMemberId: suggestion.toMemberId,
-                                amount: suggestion.amount,
-                              })
-                            }
-                          >
-                            Liquidar ahora
-                          </button>
-                          <button
-                            type="button"
-                            className="button button--ghost button--small"
-                            onClick={() => {
-                              setSettlementFromId(suggestion.fromMemberId);
-                              setSettlementToId(suggestion.toMemberId);
-                              setSettlementAmount(String(suggestion.amount));
-                            }}
-                          >
-                            Ajustar importe
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+                      <div className={`amount-pill ${balance.net >= 0 ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
+                        {formatMoney(balance.net, selectedGroup.currency)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>
+            </>
+          ) : null}
 
-          <SectionCard title="Liquidaciones" subtitle="Registra pagos reales y revisa el historial del grupo.">
-            {currentUserMember && currentUserBalance && currentUserBalance.net < 0 ? (
-              <form
-                className="form-stack"
-                onSubmit={async event => {
-                  event.preventDefault();
-                  const amount = Number(settlementAmount);
+          {detailTab === 'expenses' ? (
+            <>
+              <SectionCard title={editingExpenseId ? 'Editar gasto' : 'Añadir gasto'}>
+                <form
+                  className="form-stack"
+                  onSubmit={async event => {
+                    event.preventDefault();
+                    const amount = Number(expenseAmount);
+                    const defaultPayer = payerMemberId || selectedGroup.members[0]?.id;
 
-                  if (
-                    !settlementFromId ||
-                    !settlementToId ||
-                    settlementFromId === settlementToId ||
-                    !Number.isFinite(amount) ||
-                    amount <= 0
-                  ) {
-                    return;
-                  }
+                    if (!expenseDescription.trim() || !defaultPayer || !Number.isFinite(amount) || amount <= 0) {
+                      return;
+                    }
 
-                  await onCreateSettlement({
-                    groupId: selectedGroup.id,
-                    fromMemberId: settlementFromId,
-                    toMemberId: settlementToId,
-                    amount,
-                  });
+                    const manualSplits =
+                      splitMethod === 'manual'
+                        ? manualSplitDrafts.map(split => ({
+                            memberId: split.member.id,
+                            shareAmount: split.parsedValue || 0,
+                          }))
+                        : undefined;
 
-                  setSettlementAmount('');
-                }}
-              >
-                <div className="section-split">
+                    if (!manualSplitIsValid) {
+                      return;
+                    }
+
+                    const expenseInput = {
+                      groupId: selectedGroup.id,
+                      description: expenseDescription.trim(),
+                      amount,
+                      payerMemberId: defaultPayer,
+                      splitMethod,
+                      splits: manualSplits,
+                    } as const;
+
+                    if (editingExpenseId) {
+                      await onUpdateExpense({
+                        expenseId: editingExpenseId,
+                        ...expenseInput,
+                      });
+                    } else {
+                      await onAddExpense(expenseInput);
+                    }
+
+                    resetExpenseForm();
+                  }}
+                >
+                  <div className="section-split">
+                    <label className="field">
+                      <span className="field__label">Concepto</span>
+                      <input
+                        className="field__input"
+                        type="text"
+                        placeholder="Supermercado, gasolina..."
+                        value={expenseDescription}
+                        onChange={event => setExpenseDescription(event.target.value)}
+                      />
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">Monto</span>
+                      <input
+                        className="field__input"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={expenseAmount}
+                        onChange={event => setExpenseAmount(event.target.value)}
+                      />
+                    </label>
+                  </div>
+
                   <label className="field">
-                    <span className="field__label">De</span>
-                    <input className="field__input" type="text" value={currentUserMember.displayName} readOnly />
-                  </label>
-
-                  <label className="field">
-                    <span className="field__label">A</span>
-                    <select className="field__input" value={settlementToId} onChange={event => setSettlementToId(event.target.value)}>
-                      {availableSettlementTargets.map(member => (
+                    <span className="field__label">Pagó</span>
+                    <select
+                      className="field__input"
+                      value={payerMemberId || selectedGroup.members[0]?.id || ''}
+                      onChange={event => setPayerMemberId(event.target.value)}
+                    >
+                      {selectedGroup.members.map(member => (
                         <option key={member.id} value={member.id}>
                           {member.displayName}
                         </option>
                       ))}
                     </select>
                   </label>
+
+                  <div className="segmented-control">
+                    <button
+                      type="button"
+                      className={`segmented-control__item ${splitMethod === 'equal' ? 'segmented-control__item--active' : ''}`}
+                      onClick={() => setSplitMethod('equal')}
+                    >
+                      Equitativo
+                    </button>
+                    <button
+                      type="button"
+                      className={`segmented-control__item ${splitMethod === 'manual' ? 'segmented-control__item--active' : ''}`}
+                      onClick={() => setSplitMethod('manual')}
+                    >
+                      Personalizado
+                    </button>
+                  </div>
+
+                  {splitMethod === 'manual' ? (
+                    <div className="form-stack">
+                      <div className="section-split">
+                        {manualSplitDrafts.map(split => (
+                          <label key={split.member.id} className="field">
+                            <span className="field__label">{split.member.displayName}</span>
+                            <input
+                              className="field__input"
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={split.rawValue}
+                              onChange={event =>
+                                setManualShares(current => ({
+                                  ...current,
+                                  [split.member.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="split-summary">
+                        <div className="split-summary__title">Reparto</div>
+                        <div className="split-summary__meta">
+                          Total {formatMoney(expenseAmountValue || 0, selectedGroup.currency)} · Asignado{' '}
+                          {formatMoney(fromCents(manualAssignedCents), selectedGroup.currency)} · Restante{' '}
+                          {formatMoney(fromCents(manualRemainingCents), selectedGroup.currency)}
+                        </div>
+                        <button type="button" className="button button--ghost button--small" onClick={applyRemainingToLastMember}>
+                          Completar resto
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="form-actions">
+                    <button type="submit" className="button button--primary" disabled={splitMethod === 'manual' && !manualSplitIsValid}>
+                      {groupsBusy ? 'Guardando...' : editingExpenseId ? 'Guardar cambios' : 'Añadir gasto'}
+                    </button>
+                    {editingExpenseId ? (
+                      <button type="button" className="button button--ghost" onClick={resetExpenseForm}>
+                        Cancelar edición
+                      </button>
+                    ) : null}
+                  </div>
+                </form>
+              </SectionCard>
+
+              <SectionCard title="Historial">
+                {expenses.length === 0 ? (
+                  <EmptyState title="Sin gastos" description="Añade el primero." />
+                ) : (
+                  <div className="list-stack">
+                    {expenses.map(expense => {
+                      const payer = selectedGroup.members.find(member => member.id === expense.payerMemberId);
+                      const splitLabel = expense.splitMethod === 'equal' ? 'Equitativo' : 'Personalizado';
+
+                      return (
+                        <article key={expense.id} className="list-row list-row--stacked">
+                          <div className="list-row__content">
+                            <div className="list-row__title">{expense.description || 'Gasto compartido'}</div>
+                            <div className="list-row__meta">
+                              {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'} · {splitLabel}
+                            </div>
+                          </div>
+                          <div className="list-actions">
+                            <div className="amount-pill amount-pill--accent">{formatMoney(expense.amount, selectedGroup.currency)}</div>
+                            {editableExpenseIds.has(expense.id) ? (
+                              <button type="button" className="button button--ghost button--small" onClick={() => startEditingExpense(expense)}>
+                                Editar
+                              </button>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </SectionCard>
+            </>
+          ) : null}
+
+          {detailTab === 'payments' ? (
+            <>
+              <SectionCard title="Sugerencias">
+                {suggestions.length === 0 ? (
+                  <EmptyState title="Todo al día" description="No hay pagos sugeridos." />
+                ) : (
+                  <div className="list-stack">
+                    {suggestions.map((suggestion, index) => (
+                      <article key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${index}`} className="list-row list-row--stacked">
+                        <div className="list-row__content">
+                          <div className="list-row__title">
+                            {suggestion.fromMemberName} → {suggestion.toMemberName}
+                          </div>
+                        </div>
+                        <div className="list-actions">
+                          <div className="amount-pill amount-pill--accent">{formatMoney(suggestion.amount, selectedGroup.currency)}</div>
+                          {suggestion.fromMemberId === currentUserMember?.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="button button--primary button--small"
+                                onClick={() =>
+                                  onCreateSettlement({
+                                    groupId: selectedGroup.id,
+                                    fromMemberId: suggestion.fromMemberId,
+                                    toMemberId: suggestion.toMemberId,
+                                    amount: suggestion.amount,
+                                  })
+                                }
+                              >
+                                Liquidar
+                              </button>
+                              <button
+                                type="button"
+                                className="button button--ghost button--small"
+                                onClick={() => {
+                                  setSettlementFromId(suggestion.fromMemberId);
+                                  setSettlementToId(suggestion.toMemberId);
+                                  setSettlementAmount(String(suggestion.amount));
+                                }}
+                              >
+                                Ajustar
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Registrar pago">
+                {currentUserMember && currentUserBalance && currentUserBalance.net < 0 ? (
+                  <form
+                    className="form-stack"
+                    onSubmit={async event => {
+                      event.preventDefault();
+                      const amount = Number(settlementAmount);
+
+                      if (
+                        !settlementFromId ||
+                        !settlementToId ||
+                        settlementFromId === settlementToId ||
+                        !Number.isFinite(amount) ||
+                        amount <= 0
+                      ) {
+                        return;
+                      }
+
+                      await onCreateSettlement({
+                        groupId: selectedGroup.id,
+                        fromMemberId: settlementFromId,
+                        toMemberId: settlementToId,
+                        amount,
+                      });
+
+                      setSettlementAmount('');
+                    }}
+                  >
+                    <div className="section-split">
+                      <label className="field">
+                        <span className="field__label">De</span>
+                        <input className="field__input" type="text" value={currentUserMember.displayName} readOnly />
+                      </label>
+
+                      <label className="field">
+                        <span className="field__label">A</span>
+                        <select className="field__input" value={settlementToId} onChange={event => setSettlementToId(event.target.value)}>
+                          {availableSettlementTargets.map(member => (
+                            <option key={member.id} value={member.id}>
+                              {member.displayName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="field">
+                      <span className="field__label">Monto</span>
+                      <input
+                        className="field__input"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={settlementAmount}
+                        onChange={event => setSettlementAmount(event.target.value)}
+                      />
+                    </label>
+
+                    <button type="submit" className="button button--ghost">
+                      Registrar pago
+                    </button>
+                  </form>
+                ) : (
+                  <EmptyState title="Sin pagos pendientes" description="Nada que registrar." />
+                )}
+              </SectionCard>
+
+              <SectionCard title="Historial">
+                {settlements.length === 0 ? (
+                  <EmptyState title="Sin pagos" description="Aún no hay liquidaciones." />
+                ) : (
+                  <div className="list-stack">
+                    {settlements.map(settlement => {
+                      const fromMember = selectedGroup.members.find(member => member.id === settlement.fromMemberId);
+                      const toMember = selectedGroup.members.find(member => member.id === settlement.toMemberId);
+
+                      return (
+                        <article key={settlement.id} className="list-row list-row--stacked">
+                          <div className="list-row__content">
+                            <div className="list-row__title">
+                              {fromMember?.displayName || 'Miembro'} → {toMember?.displayName || 'Miembro'}
+                            </div>
+                            <div className="list-row__meta">
+                              {formatDate(settlement.occurredAt)} · {settlement.status}
+                            </div>
+                          </div>
+                          <div className="amount-pill amount-pill--accent">{formatMoney(settlement.amount, selectedGroup.currency)}</div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </SectionCard>
+            </>
+          ) : null}
+
+          {detailTab === 'settings' ? (
+            <>
+              <SectionCard title="Miembros">
+                <div className="list-stack">
+                  <div className="member-pill-row">
+                    {selectedGroup.members.map(member => (
+                      <div key={member.id} className="member-pill">
+                        {member.displayName}
+                      </div>
+                    ))}
+                  </div>
+
+                  <form
+                    className="form-stack"
+                    onSubmit={async event => {
+                      event.preventDefault();
+                      if (!memberName.trim()) return;
+                      await onAddMember({ groupId: selectedGroup.id, displayName: memberName.trim() });
+                      setMemberName('');
+                    }}
+                  >
+                    <label className="field">
+                      <span className="field__label">Nuevo invitado</span>
+                      <input
+                        className="field__input"
+                        type="text"
+                        placeholder="Añade otro participante"
+                        value={memberName}
+                        onChange={event => setMemberName(event.target.value)}
+                      />
+                    </label>
+                    <button type="submit" className="button button--ghost">
+                      Añadir miembro
+                    </button>
+                  </form>
                 </div>
+              </SectionCard>
 
-                <label className="field">
-                  <span className="field__label">Monto</span>
-                  <input
-                    className="field__input"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={settlementAmount}
-                    onChange={event => setSettlementAmount(event.target.value)}
-                  />
-                </label>
-
-                <button type="submit" className="button button--ghost">
-                  Registrar pago
-                </button>
-              </form>
-            ) : (
-              <EmptyState
-                title="Sin pagos pendientes tuyos"
-                description="Cuando tengas deuda pendiente podrás registrar aquí una liquidación total o parcial."
-              />
-            )}
-
-            {settlements.length === 0 ? (
-              <EmptyState title="Sin liquidaciones" description="Cuando registres una aparecerá aquí con su estado." />
-            ) : (
-              <div className="list-stack">
-                {settlements.map(settlement => {
-                  const fromMember = selectedGroup.members.find(member => member.id === settlement.fromMemberId);
-                  const toMember = selectedGroup.members.find(member => member.id === settlement.toMemberId);
-
-                  return (
-                    <article key={settlement.id} className="list-row list-row--stacked">
-                      <div className="list-row__content">
-                        <div className="list-row__title">
-                          {fromMember?.displayName || 'Miembro'} → {toMember?.displayName || 'Miembro'}
-                        </div>
-                        <div className="list-row__meta">
-                          {formatDate(settlement.occurredAt)} · Estado {settlement.status}
-                        </div>
-                      </div>
-                      <div className="amount-pill amount-pill--accent">{formatMoney(settlement.amount, selectedGroup.currency)}</div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Gastos recientes" subtitle="Historial del grupo con acceso directo a edición cuando tienes permiso.">
-            {expenses.length === 0 ? (
-              <EmptyState title="Aún no hay gastos" description="Añade el primer gasto del grupo para empezar a repartir." />
-            ) : (
-              <div className="list-stack">
-                {expenses.map(expense => {
-                  const payer = selectedGroup.members.find(member => member.id === expense.payerMemberId);
-                  const splitLabel = expense.splitMethod === 'equal' ? 'Equitativo' : 'Personalizado';
-
-                  return (
-                    <article key={expense.id} className="list-row list-row--stacked">
-                      <div className="list-row__content">
-                        <div className="list-row__title">{expense.description || 'Gasto compartido'}</div>
-                        <div className="list-row__meta">
-                          {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'} · Reparto {splitLabel}
-                        </div>
-                      </div>
-                      <div className="list-actions">
-                        <div className="amount-pill amount-pill--accent">{formatMoney(expense.amount, selectedGroup.currency)}</div>
-                        {editableExpenseIds.has(expense.id) ? (
-                          <button type="button" className="button button--ghost button--small" onClick={() => startEditingExpense(expense)}>
-                            Editar
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
+              <SectionCard title="Código del grupo">
+                {selectedGroupJoinCode ? (
+                  <article className="list-row">
+                    <div>
+                      <div className="list-row__title">{selectedGroupJoinCode}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="button button--ghost button--small"
+                      onClick={() => {
+                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                          navigator.clipboard.writeText(selectedGroupJoinCode);
+                        }
+                      }}
+                    >
+                      Copiar
+                    </button>
+                  </article>
+                ) : (
+                  <EmptyState title="No disponible" description="Solo visible para admins." />
+                )}
+              </SectionCard>
+            </>
+          ) : null}
         </>
       ) : (
         <SectionCard>
           <EmptyState
             title="Selecciona un grupo"
-            description="Vuelve al listado y abre uno de tus grupos para consultar balances, gastos y liquidaciones."
+            description="Vuelve al listado y abre uno de tus grupos."
             actionLabel="Ir al listado"
             onAction={() => setView('list')}
           />

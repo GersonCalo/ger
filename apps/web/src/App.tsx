@@ -2,7 +2,7 @@ import { AppShell } from '@/components/AppShell';
 import { useFinanceApp } from '@/hooks/useFinanceApp';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { DashboardScreen } from '@/screens/DashboardScreen';
-import { GroupsScreen } from '@/screens/GroupsScreen';
+import { GroupsScreen } from './screens/GroupsScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { TransactionsScreen } from '@/screens/TransactionsScreen';
 
@@ -17,7 +17,7 @@ const tabCopy = {
   },
   groups: {
     title: 'Grupos',
-    subtitle: 'Explora tus grupos y entra al detalle solo cuando lo necesites.',
+    subtitle: 'Tus grupos.',
   },
   profile: {
     title: 'Perfil',
