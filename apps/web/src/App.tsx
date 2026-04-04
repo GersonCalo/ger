@@ -119,7 +119,6 @@ function App() {
           notice={financeApp.groupsNotice}
           onAddMember={financeApp.addGroupMember}
           onAddExpense={financeApp.addGroupExpense}
-          onConfirmSettlement={financeApp.confirmSettlement}
           onCreateGroup={financeApp.createGroup}
           onCreateSettlement={financeApp.createSettlement}
           onJoinByCode={financeApp.joinGroupByCode}
@@ -127,6 +126,7 @@ function App() {
           selectedGroupData={financeApp.selectedGroupData}
           selectedGroupId={financeApp.selectedGroupId}
           selectedGroupJoinCode={financeApp.selectedGroupJoinCode}
+          user={financeApp.user!}
         />
       ) : null}
 

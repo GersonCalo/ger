@@ -1086,7 +1086,7 @@ groupsRouter.get('/groups/:id/balances', requireAuth, async (req, res) => {
 
 groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const access = await assertAdminGroup(req.params.id, userId);
+  const access = await assertAccessibleGroup(req.params.id, userId);
 
   if (access.error) {
     return res.status(access.error.status).json(access.error.body);
@@ -1116,6 +1116,118 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     return res.status(400).json({ message: 'Los miembros indicados no pertenecen al grupo' });
   }
 
+  const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
+  if (!requesterMember) {
+    return res.status(403).json({ message: 'Debes pertenecer al grupo como miembro real para registrar una liquidación' });
+  }
+
+  if (requesterMember.id !== parsed.data.fromMemberId) {
+    return res.status(403).json({ message: 'Solo puedes registrar liquidaciones saliendo de tu propio balance' });
+  }
+
+  const financialGroup = await prisma.group.findUnique({
+    where: { id: access.group.id },
+    select: {
+      members: {
+        select: {
+          id: true,
+          displayName: true,
+          weight: true,
+        },
+        orderBy: { id: 'asc' },
+      },
+      expenses: {
+        select: {
+          id: true,
+          payerMemberId: true,
+          amount: true,
+          splitMethod: true,
+          splits: {
+            select: {
+              memberId: true,
+              shareAmount: true,
+              shareWeight: true,
+            },
+          },
+        },
+      },
+      settlements: {
+        select: {
+          fromMemberId: true,
+          toMemberId: true,
+          amount: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  if (!financialGroup) {
+    return res.status(404).json({ message: 'Grupo no encontrado' });
+  }
+
+  const balances = calculateGroupBalances({
+    members: financialGroup.members.map((member: { id: string; displayName: string; weight: { toString(): string } | null }) => ({
+      id: member.id,
+      displayName: member.displayName,
+      weight: member.weight == null ? null : Number(member.weight.toString()),
+    })),
+    expenses: financialGroup.expenses.map((expense: {
+      id: string;
+      payerMemberId: string;
+      amount: { toString(): string };
+      splitMethod: string;
+      splits: Array<{
+        memberId: string;
+        shareAmount: { toString(): string } | null;
+        shareWeight: { toString(): string } | null;
+      }>;
+    }) => ({
+      id: expense.id,
+      payerMemberId: expense.payerMemberId,
+      amount: Number(expense.amount.toString()),
+      splitMethod: expense.splitMethod as 'equal' | 'weights',
+      splits: expense.splits.map((split: {
+        memberId: string;
+        shareAmount: { toString(): string } | null;
+        shareWeight: { toString(): string } | null;
+      }) => ({
+        memberId: split.memberId,
+        shareAmount: split.shareAmount == null ? null : Number(split.shareAmount.toString()),
+        shareWeight: split.shareWeight == null ? null : Number(split.shareWeight.toString()),
+      })),
+    })),
+    settlements: financialGroup.settlements.map((settlement: {
+      fromMemberId: string;
+      toMemberId: string;
+      amount: { toString(): string };
+      status: string;
+    }) => ({
+      fromMemberId: settlement.fromMemberId,
+      toMemberId: settlement.toMemberId,
+      amount: Number(settlement.amount.toString()),
+      status: settlement.status,
+    })),
+  });
+
+  const fromBalance = balances.find(balance => balance.memberId === parsed.data.fromMemberId);
+  const toBalance = balances.find(balance => balance.memberId === parsed.data.toMemberId);
+
+  if (!fromBalance || fromBalance.netCents >= 0) {
+    return res.status(400).json({ message: 'Ese miembro no tiene deuda pendiente que liquidar' });
+  }
+
+  if (!toBalance || toBalance.netCents <= 0) {
+    return res.status(400).json({ message: 'Solo puedes liquidar hacia un miembro con saldo a favor' });
+  }
+
+  const maxAmount = fromCents(Math.min(Math.abs(fromBalance.netCents), toBalance.netCents));
+  if (amount > maxAmount) {
+    return res.status(400).json({
+      message: `El monto supera lo pendiente entre ambos miembros. Máximo liquidable: ${maxAmount.toFixed(2)}`,
+    });
+  }
+
   const settlement = await prisma.groupSettlement.create({
     data: {
       groupId: access.group.id,
@@ -1123,7 +1235,7 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
       toMemberId: parsed.data.toMemberId,
       amount,
       occurredAt,
-      status: 'proposed',
+      status: 'confirmed',
     },
     select: {
       id: true,

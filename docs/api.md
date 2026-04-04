@@ -40,7 +40,9 @@ Notas:
 - `GET /groups/:id/balances` devuelve miembros, gastos, liquidaciones, balances y sugerencias de liquidación.
 - `POST /groups/join-by-code` crea un miembro real para el usuario autenticado usando un código fijo del grupo.
 - `GET /groups/:id/join-code` expone el código del grupo para admins.
-- Las liquidaciones impactan el neto del grupo solo cuando su estado es `confirmed`.
+- `POST /groups/:id/settlements` registra una liquidación aplicada al balance desde el momento de creación.
+- El usuario autenticado solo puede registrar liquidaciones saliendo de su propio balance como deudor.
+- Las sugerencias de liquidación sirven como atajo de ejecución, pero la UI mantiene también el registro manual de importes parciales.
 - Los importes de reparto se calculan y cierran siempre a dos decimales.
 - Los nuevos usuarios y grupos usan EUR por defecto.
 - El frontend refresca automáticamente grupos y saldo consolidado cada 10 segundos mientras la pestaña está visible y también al recuperar foco.

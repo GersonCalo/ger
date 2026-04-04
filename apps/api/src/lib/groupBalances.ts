@@ -139,7 +139,7 @@ export const calculateGroupBalances = ({ expenses, members, settlements }: Group
 
   return [...balances.values()].map(balance => {
     const netCents =
-      balance.paidCents - balance.owesCents - balance.settledOutCents + balance.settledInCents;
+      balance.paidCents - balance.owesCents + balance.settledOutCents - balance.settledInCents;
 
     return {
       memberId: balance.memberId,

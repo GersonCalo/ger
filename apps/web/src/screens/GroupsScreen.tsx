@@ -4,7 +4,7 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { GroupBalancesPayload, GroupSummary } from '@/types';
+import type { AuthUser, GroupBalancesPayload, GroupSummary } from '@/types';
 
 type GroupsScreenProps = {
   error: string | null;
@@ -19,7 +19,6 @@ type GroupsScreenProps = {
     payerMemberId: string;
     splitMethod: 'equal' | 'weights';
   }) => Promise<void>;
-  onConfirmSettlement: (groupId: string, settlementId: string) => Promise<void>;
   onCreateGroup: (input: { name: string; guestMembers: string[] }) => Promise<void>;
   onCreateSettlement: (input: { groupId: string; fromMemberId: string; toMemberId: string; amount: number }) => Promise<void>;
   onJoinByCode: (code: string) => Promise<void>;
@@ -27,6 +26,7 @@ type GroupsScreenProps = {
   selectedGroupData: GroupBalancesPayload | null;
   selectedGroupId: string | null;
   selectedGroupJoinCode: string | null;
+  user: AuthUser;
 };
 
 export const GroupsScreen = ({
@@ -36,7 +36,6 @@ export const GroupsScreen = ({
   notice,
   onAddExpense,
   onAddMember,
-  onConfirmSettlement,
   onCreateGroup,
   onCreateSettlement,
   onJoinByCode,
@@ -44,6 +43,7 @@ export const GroupsScreen = ({
   selectedGroupData,
   selectedGroupId,
   selectedGroupJoinCode,
+  user,
 }: GroupsScreenProps) => {
   const [groupName, setGroupName] = useState('');
   const [guestMembers, setGuestMembers] = useState('');
@@ -66,6 +66,15 @@ export const GroupsScreen = ({
   const balances = selectedGroupData?.balances || [];
   const suggestions = selectedGroupData?.suggestions || [];
   const settlements = selectedGroupData?.settlements || [];
+  const currentUserMember =
+    selectedGroupData?.members.find(member => member.userId === user.id) ||
+    selectedGroup?.members.find(member => member.userId === user.id) ||
+    null;
+  const currentUserBalance = balances.find(balance => balance.memberId === currentUserMember?.id) || null;
+  const creditorBalances = balances.filter(balance => balance.net > 0 && balance.memberId !== currentUserMember?.id);
+  const availableSettlementTargets = selectedGroupData?.members.filter(member =>
+    creditorBalances.some(balance => balance.memberId === member.id)
+  ) || [];
 
   useEffect(() => {
     if (!groups.length) {
@@ -81,9 +90,20 @@ export const GroupsScreen = ({
     if (!selectedGroupData) return;
 
     setPayerMemberId(current => current || selectedGroupData.members[0]?.id || '');
-    setSettlementFromId(current => current || selectedGroupData.members[0]?.id || '');
-    setSettlementToId(current => current || selectedGroupData.members[1]?.id || selectedGroupData.members[0]?.id || '');
-  }, [selectedGroupData]);
+    setSettlementFromId(currentUserMember?.id || '');
+    setSettlementToId(current => {
+      if (
+        current &&
+        current !== currentUserMember?.id &&
+        availableSettlementTargets.some(member => member.id === current)
+      ) {
+        return current;
+      }
+
+      const suggestedTargetId = suggestions.find(suggestion => suggestion.fromMemberId === currentUserMember?.id)?.toMemberId;
+      return suggestedTargetId || availableSettlementTargets[0]?.id || '';
+    });
+  }, [availableSettlementTargets, currentUserMember?.id, selectedGroupData, suggestions]);
 
   return (
     <div className="screen-stack">
@@ -368,15 +388,46 @@ export const GroupsScreen = ({
                 ) : (
                   <div className="list-stack">
                     {suggestions.map((suggestion, index) => (
-                      <article key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${index}`} className="list-row">
+                      <article key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${index}`} className="list-row list-row--stacked">
                         <div>
                           <div className="list-row__title">
                             {suggestion.fromMemberName} → {suggestion.toMemberName}
                           </div>
                           <div className="list-row__meta">Recomendación de liquidación</div>
                         </div>
-                        <div className="amount-pill amount-pill--accent">
-                          {formatMoney(suggestion.amount, selectedGroup.currency)}
+                        <div className="list-row__content">
+                          <div className="amount-pill amount-pill--accent">
+                            {formatMoney(suggestion.amount, selectedGroup.currency)}
+                          </div>
+                          {suggestion.fromMemberId === currentUserMember?.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="button button--primary button--small"
+                                onClick={() =>
+                                  onCreateSettlement({
+                                    groupId: selectedGroup.id,
+                                    fromMemberId: suggestion.fromMemberId,
+                                    toMemberId: suggestion.toMemberId,
+                                    amount: suggestion.amount,
+                                  })
+                                }
+                              >
+                                Liquidar ahora
+                              </button>
+                              <button
+                                type="button"
+                                className="button button--ghost button--small"
+                                onClick={() => {
+                                  setSettlementFromId(suggestion.fromMemberId);
+                                  setSettlementToId(suggestion.toMemberId);
+                                  setSettlementAmount(String(suggestion.amount));
+                                }}
+                              >
+                                Ajustar importe
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                       </article>
                     ))}
@@ -384,66 +435,73 @@ export const GroupsScreen = ({
                 )}
               </SectionCard>
 
-              <SectionCard title="Nueva liquidación" subtitle="Registra o confirma pagos entre miembros.">
-                <form
-                  className="form-stack"
-                  onSubmit={async event => {
-                    event.preventDefault();
-                    const amount = Number(settlementAmount);
+              <SectionCard title="Nueva liquidación" subtitle="Registra pagos reales y permite liquidar un importe parcial si lo necesitas.">
+                {currentUserMember && currentUserBalance && currentUserBalance.net < 0 ? (
+                  <form
+                    className="form-stack"
+                    onSubmit={async event => {
+                      event.preventDefault();
+                      const amount = Number(settlementAmount);
 
-                    if (!settlementFromId || !settlementToId || settlementFromId === settlementToId || !Number.isFinite(amount) || amount <= 0) {
-                      return;
-                    }
+                      if (
+                        !settlementFromId ||
+                        !settlementToId ||
+                        settlementFromId === settlementToId ||
+                        !Number.isFinite(amount) ||
+                        amount <= 0
+                      ) {
+                        return;
+                      }
 
-                    await onCreateSettlement({
-                      groupId: selectedGroup.id,
-                      fromMemberId: settlementFromId,
-                      toMemberId: settlementToId,
-                      amount,
-                    });
+                      await onCreateSettlement({
+                        groupId: selectedGroup.id,
+                        fromMemberId: settlementFromId,
+                        toMemberId: settlementToId,
+                        amount,
+                      });
 
-                    setSettlementAmount('');
-                  }}
-                >
-                  <label className="field">
-                    <span className="field__label">De</span>
-                    <select className="field__input" value={settlementFromId} onChange={event => setSettlementFromId(event.target.value)}>
-                      {selectedGroup.members.map(member => (
-                        <option key={member.id} value={member.id}>
-                          {member.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      setSettlementAmount('');
+                    }}
+                  >
+                    <label className="field">
+                      <span className="field__label">De</span>
+                      <input className="field__input" type="text" value={currentUserMember.displayName} readOnly />
+                    </label>
 
-                  <label className="field">
-                    <span className="field__label">A</span>
-                    <select className="field__input" value={settlementToId} onChange={event => setSettlementToId(event.target.value)}>
-                      {selectedGroup.members.map(member => (
-                        <option key={member.id} value={member.id}>
-                          {member.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <label className="field">
+                      <span className="field__label">A</span>
+                      <select className="field__input" value={settlementToId} onChange={event => setSettlementToId(event.target.value)}>
+                        {availableSettlementTargets.map(member => (
+                          <option key={member.id} value={member.id}>
+                            {member.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                  <label className="field">
-                    <span className="field__label">Monto</span>
-                    <input
-                      className="field__input"
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={settlementAmount}
-                      onChange={event => setSettlementAmount(event.target.value)}
-                    />
-                  </label>
+                    <label className="field">
+                      <span className="field__label">Monto</span>
+                      <input
+                        className="field__input"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={settlementAmount}
+                        onChange={event => setSettlementAmount(event.target.value)}
+                      />
+                    </label>
 
-                  <button type="submit" className="button button--ghost">
-                    Crear liquidación
-                  </button>
-                </form>
+                    <button type="submit" className="button button--ghost">
+                      Registrar pago
+                    </button>
+                  </form>
+                ) : (
+                  <EmptyState
+                    title="Sin pagos pendientes tuyos"
+                    description="Cuando tengas deuda pendiente podrás registrar aquí una liquidación total o parcial."
+                  />
+                )}
 
                 {settlements.length === 0 ? (
                   <EmptyState title="Sin liquidaciones" description="Cuando registres una aparecerá aquí con su estado." />
@@ -467,15 +525,6 @@ export const GroupsScreen = ({
                             <div className="amount-pill amount-pill--accent">
                               {formatMoney(settlement.amount, selectedGroup.currency)}
                             </div>
-                            {settlement.status === 'proposed' ? (
-                              <button
-                                type="button"
-                                className="button button--ghost button--small"
-                                onClick={() => onConfirmSettlement(selectedGroup.id, settlement.id)}
-                              >
-                                Confirmar
-                              </button>
-                            ) : null}
                           </div>
                         </article>
                       );
