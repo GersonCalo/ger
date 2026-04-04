@@ -27,6 +27,21 @@ export type ApiHealth = {
   env: string;
 };
 
+export type GlobalBalancePayload = {
+  personalIncome: number;
+  personalExpense: number;
+  personalBalance: number;
+  groupNet: number;
+  totalBalance: number;
+  groupsBreakdown: Array<{
+    groupId: string;
+    groupName: string;
+    currency: string;
+    memberId: string;
+    net: number;
+  }>;
+};
+
 export type GroupMember = {
   id: string;
   userId: string | null;
@@ -103,4 +118,15 @@ export type GroupBalancesPayload = {
   settlements: GroupSettlement[];
   balances: GroupBalance[];
   suggestions: GroupSuggestion[];
+};
+
+export type GroupJoinCodePayload = {
+  groupId: string;
+  groupName: string;
+  joinCode: string;
+};
+
+export type JoinGroupByCodePayload = {
+  group: GroupSummary;
+  message: string;
 };

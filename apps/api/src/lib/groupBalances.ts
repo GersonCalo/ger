@@ -29,8 +29,9 @@ type GroupBalancesInput = {
   settlements: BalanceSettlement[];
 };
 
-const toCents = (amount: number) => Math.round(amount * 100);
-const fromCents = (amount: number) => amount / 100;
+export const toCents = (amount: number) => Math.round(amount * 100);
+export const fromCents = (amount: number) => Number((amount / 100).toFixed(2));
+export const roundMoney = (amount: number) => fromCents(toCents(amount));
 
 const computeSharesFromWeights = (amountCents: number, members: BalanceMember[]) => {
   const orderedMembers = [...members].sort((a, b) => a.id.localeCompare(b.id));

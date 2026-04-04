@@ -3,9 +3,10 @@
 Aplicación web que combina gestión de finanzas personales con administración de gastos compartidos en grupos. Incluye soporte para participantes reales (usuarios) y participantes “invitados/falsos” en grupos, con reparto equitativo o por pesos.
 
 ## Características
-- Finanzas personales: ingresos, gastos y saldo consolidado.
-- Grupos: miembros reales o invitados, gastos, reparto, balances y liquidaciones persistidas.
+- Finanzas personales: ingresos, gastos, saldo personal, neto de grupos y total consolidado.
+- Grupos: miembros reales o invitados, gastos, reparto, balances, liquidaciones persistidas y acceso por código fijo.
 - Repartos: equitativo o por porcentajes/pesos.
+- Moneda por defecto: EUR para nuevos usuarios y nuevos grupos.
 - Arquitectura contenedorizada con Docker para despliegue en cualquier proveedor.
 
 ## Tecnologías
@@ -39,6 +40,7 @@ Aplicación web que combina gestión de finanzas personales con administración 
    - Web (dev): http://localhost:3000
 
 La pestaña Grupos usa persistencia real en PostgreSQL a través de la API del backend.
+El dashboard separa saldo personal, efecto neto de grupos y saldo consolidado.
 
 Para producción local:
 ```bash

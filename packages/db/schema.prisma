@@ -13,7 +13,7 @@ model User {
   email        String   @unique
   passwordHash String
   name         String?
-  currency     String   @default("USD")
+  currency     String   @default("EUR")
   createdAt    DateTime @default(now())
 
   transactions PersonalTransaction[]
@@ -39,7 +39,8 @@ model Group {
   name         String
   ownerUserId  String
   owner        User     @relation("UserGroups", fields: [ownerUserId], references: [id])
-  currency     String   @default("USD")
+  currency     String   @default("EUR")
+  joinCode     String?  @unique
   createdAt    DateTime @default(now())
 
   members      GroupMember[]

@@ -2,11 +2,14 @@ import type {
   ApiHealth,
   AuthResponse,
   AuthUser,
+  GlobalBalancePayload,
   GroupBalancesPayload,
   GroupExpense,
+  GroupJoinCodePayload,
   GroupMember,
   GroupSettlement,
   GroupSummary,
+  JoinGroupByCodePayload,
   Transaction,
 } from '@/types';
 
@@ -88,6 +91,13 @@ export const api = {
     const data = await parseJson<{ transaction: Transaction }>(response);
     return data.transaction;
   },
+  async balance(token: string) {
+    const response = await fetch(`${API_BASE}/balance`, {
+      headers: createHeaders(token),
+    });
+
+    return parseJson<GlobalBalancePayload>(response);
+  },
   async groups(token: string) {
     const response = await fetch(`${API_BASE}/groups`, {
       headers: createHeaders(token),
@@ -112,6 +122,22 @@ export const api = {
 
     const data = await parseJson<{ group: GroupSummary }>(response);
     return data.group;
+  },
+  async joinGroupByCode(token: string, code: string) {
+    const response = await fetch(`${API_BASE}/groups/join-by-code`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify({ code }),
+    });
+
+    return parseJson<JoinGroupByCodePayload>(response);
+  },
+  async groupJoinCode(token: string, groupId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/join-code`, {
+      headers: createHeaders(token),
+    });
+
+    return parseJson<GroupJoinCodePayload>(response);
   },
   async groupBalances(token: string, groupId: string) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/balances`, {

@@ -1,9 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
+import { calculateUserBalance } from '../lib/userBalance.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 
 export const transactionsRouter = Router();
+
+transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+  const balance = await calculateUserBalance(userId);
+
+  return res.json(balance);
+});
 
 transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;

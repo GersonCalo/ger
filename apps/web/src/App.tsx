@@ -122,9 +122,11 @@ function App() {
           onConfirmSettlement={financeApp.confirmSettlement}
           onCreateGroup={financeApp.createGroup}
           onCreateSettlement={financeApp.createSettlement}
+          onJoinByCode={financeApp.joinGroupByCode}
           onSelectGroup={financeApp.setSelectedGroupId}
           selectedGroupData={financeApp.selectedGroupData}
           selectedGroupId={financeApp.selectedGroupId}
+          selectedGroupJoinCode={financeApp.selectedGroupJoinCode}
         />
       ) : null}
 

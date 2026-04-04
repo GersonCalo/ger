@@ -22,9 +22,11 @@ type GroupsScreenProps = {
   onConfirmSettlement: (groupId: string, settlementId: string) => Promise<void>;
   onCreateGroup: (input: { name: string; guestMembers: string[] }) => Promise<void>;
   onCreateSettlement: (input: { groupId: string; fromMemberId: string; toMemberId: string; amount: number }) => Promise<void>;
+  onJoinByCode: (code: string) => Promise<void>;
   onSelectGroup: (groupId: string) => void;
   selectedGroupData: GroupBalancesPayload | null;
   selectedGroupId: string | null;
+  selectedGroupJoinCode: string | null;
 };
 
 export const GroupsScreen = ({
@@ -37,12 +39,15 @@ export const GroupsScreen = ({
   onConfirmSettlement,
   onCreateGroup,
   onCreateSettlement,
+  onJoinByCode,
   onSelectGroup,
   selectedGroupData,
   selectedGroupId,
+  selectedGroupJoinCode,
 }: GroupsScreenProps) => {
   const [groupName, setGroupName] = useState('');
   const [guestMembers, setGuestMembers] = useState('');
+  const [joinCode, setJoinCode] = useState('');
   const [memberName, setMemberName] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -127,6 +132,33 @@ export const GroupsScreen = ({
         </form>
       </SectionCard>
 
+      <SectionCard title="Unirse a un grupo" subtitle="Pega un código de grupo para entrar como usuario real.">
+        <form
+          className="form-stack"
+          onSubmit={async event => {
+            event.preventDefault();
+            if (!joinCode.trim()) return;
+            await onJoinByCode(joinCode.trim());
+            setJoinCode('');
+          }}
+        >
+          <label className="field">
+            <span className="field__label">Código del grupo</span>
+            <input
+              className="field__input"
+              type="text"
+              placeholder="ABCD1234"
+              value={joinCode}
+              onChange={event => setJoinCode(event.target.value.toUpperCase())}
+            />
+          </label>
+
+          <button type="submit" className="button button--ghost">
+            {groupsBusy ? 'Uniendo...' : 'Unirme con código'}
+          </button>
+        </form>
+      </SectionCard>
+
       {groups.length === 0 ? (
         <SectionCard>
           <EmptyState
@@ -161,6 +193,40 @@ export const GroupsScreen = ({
                 <StatCard label="Gastos" value={`${summary.count}`} />
                 <StatCard label="Miembros" value={`${selectedGroup.members.length}`} />
               </div>
+
+              <SectionCard
+                title="Código del grupo"
+                subtitle={
+                  selectedGroupJoinCode
+                    ? 'Compártelo con otros usuarios para que entren directamente en este grupo.'
+                    : 'Solo los admins del grupo pueden ver y compartir el código.'
+                }
+              >
+                {selectedGroupJoinCode ? (
+                  <div className="list-row">
+                    <div>
+                      <div className="list-row__title">{selectedGroupJoinCode}</div>
+                      <div className="list-row__meta">Código fijo de acceso</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="button button--ghost button--small"
+                      onClick={() => {
+                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                          navigator.clipboard.writeText(selectedGroupJoinCode);
+                        }
+                      }}
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="Código no disponible"
+                    description="Si necesitas compartirlo, entra con un miembro admin del grupo."
+                  />
+                )}
+              </SectionCard>
 
               <SectionCard title={selectedGroup.name} subtitle="Registra un gasto y calcula balances al instante.">
                 <div className="member-pill-row">

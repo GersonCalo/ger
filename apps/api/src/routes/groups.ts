@@ -1,7 +1,8 @@
 import type { Prisma } from '@prisma/client';
+import { randomInt } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { calculateGroupBalances, calculateSettlementSuggestions } from '../lib/groupBalances.js';
+import { calculateGroupBalances, calculateSettlementSuggestions, fromCents, roundMoney, toCents } from '../lib/groupBalances.js';
 import {
   serializeGroupExpense,
   serializeGroupMember,
@@ -13,6 +14,9 @@ import { requireAuth } from '../middlewares/requireAuth.js';
 
 export const groupsRouter = Router();
 
+const DEFAULT_CURRENCY = 'EUR';
+const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const JOIN_CODE_LENGTH = 8;
 const positiveAmountSchema = z.union([z.number().positive(), z.string().min(1)]);
 
 const numberFromUnknown = (value: unknown) => {
@@ -23,7 +27,7 @@ const numberFromUnknown = (value: unknown) => {
 
 const normalizeAmount = (value: unknown) => {
   const amount = numberFromUnknown(value);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
+  return Number.isFinite(amount) && amount > 0 ? roundMoney(amount) : null;
 };
 
 const normalizeWeight = (value: unknown) => {
@@ -89,11 +93,34 @@ const updateSettlementSchema = z.object({
   status: z.enum(['confirmed', 'cancelled']),
 });
 
+const joinByCodeSchema = z.object({
+  code: z.string().trim().min(4).max(32),
+});
+
 type RouteError = {
   status: number;
   body: {
     message: string;
   };
+};
+
+const generateJoinCodeValue = () =>
+  Array.from({ length: JOIN_CODE_LENGTH }, () => JOIN_CODE_ALPHABET[randomInt(JOIN_CODE_ALPHABET.length)]).join('');
+
+const createUniqueJoinCode = async () => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const joinCode = generateJoinCodeValue();
+    const existingGroup = await prisma.group.findUnique({
+      where: { joinCode },
+      select: { id: true },
+    });
+
+    if (!existingGroup) {
+      return joinCode;
+    }
+  }
+
+  throw new Error('No se pudo generar un código de grupo único');
 };
 
 const getAccessibleGroup = async (groupId: string, userId: string) => {
@@ -210,7 +237,7 @@ const buildExpenseSplits = (
   members: Array<{ id: string; weight: { toString(): string } | null }>
 ) => {
   const memberIds = [...members].sort((a, b) => a.id.localeCompare(b.id));
-  const amountCents = Math.round(amount * 100);
+  const amountCents = toCents(amount);
 
   if (splitMethod === 'equal') {
     const baseShare = Math.floor(amountCents / (memberIds.length || 1));
@@ -222,7 +249,7 @@ const buildExpenseSplits = (
 
       return {
         memberId: member.id,
-        shareAmount: shareCents / 100,
+        shareAmount: fromCents(shareCents),
         shareWeight: null,
       };
     });
@@ -241,7 +268,7 @@ const buildExpenseSplits = (
       const shareCents = amountCents - assigned;
       return {
         memberId: member.id,
-        shareAmount: shareCents / 100,
+        shareAmount: fromCents(shareCents),
         shareWeight: weights[index],
       };
     }
@@ -251,7 +278,7 @@ const buildExpenseSplits = (
 
     return {
       memberId: member.id,
-      shareAmount: shareCents / 100,
+      shareAmount: fromCents(shareCents),
       shareWeight: weights[index],
     };
   });
@@ -322,6 +349,8 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
     return res.status(401).json({ message: 'No autenticado' });
   }
 
+  const joinCode = await createUniqueJoinCode();
+
   const preparedMembers: Array<{ userId: string | null; displayName: string; weight: number | null; role: 'member' | 'admin' }> = [];
 
   for (const member of parsed.data.members || []) {
@@ -345,7 +374,8 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
   const group = await prisma.group.create({
     data: {
       name: parsed.data.name.trim(),
-      currency: parsed.data.currency?.trim() || owner.currency,
+      currency: parsed.data.currency?.trim() || DEFAULT_CURRENCY,
+      joinCode,
       ownerUserId: userId,
       members: {
         create: [
@@ -396,6 +426,170 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
   });
 
   return res.status(201).json({ group: serializeGroupSummary(group) });
+});
+
+groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+
+  const parsed = joinByCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+  }
+
+  const code = parsed.data.code.trim().toUpperCase();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, email: true },
+  });
+
+  if (!user) {
+    return res.status(401).json({ message: 'No autenticado' });
+  }
+
+  const group = await prisma.group.findUnique({
+    where: { joinCode: code },
+    select: {
+      id: true,
+      name: true,
+      members: {
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          weight: true,
+          role: true,
+        },
+        orderBy: { id: 'asc' },
+      },
+      expenses: {
+        select: {
+          id: true,
+          payerMemberId: true,
+          amount: true,
+          description: true,
+          occurredAt: true,
+          splitMethod: true,
+          splits: {
+            select: {
+              id: true,
+              memberId: true,
+              shareAmount: true,
+              shareWeight: true,
+            },
+          },
+        },
+        orderBy: { occurredAt: 'desc' },
+      },
+    },
+  });
+
+  if (!group) {
+    return res.status(404).json({ message: 'Código de grupo no válido' });
+  }
+
+  if (group.members.some((member: { userId: string | null }) => member.userId === userId)) {
+    return res.status(400).json({ message: 'Ya formas parte de este grupo' });
+  }
+
+  await prisma.groupMember.create({
+    data: {
+      groupId: group.id,
+      userId,
+      displayName: user.name?.trim() || user.email,
+      weight: 1,
+      role: 'member',
+    },
+  });
+
+  const refreshedGroup = await prisma.group.findUnique({
+    where: { id: group.id },
+    select: {
+      id: true,
+      name: true,
+      currency: true,
+      createdAt: true,
+      members: {
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          weight: true,
+          role: true,
+        },
+        orderBy: { id: 'asc' },
+      },
+      expenses: {
+        select: {
+          id: true,
+          payerMemberId: true,
+          amount: true,
+          description: true,
+          occurredAt: true,
+          splitMethod: true,
+          splits: {
+            select: {
+              id: true,
+              memberId: true,
+              shareAmount: true,
+              shareWeight: true,
+            },
+          },
+        },
+        orderBy: { occurredAt: 'desc' },
+      },
+    },
+  });
+
+  if (!refreshedGroup) {
+    return res.status(404).json({ message: 'Grupo no encontrado' });
+  }
+
+  return res.status(201).json({
+    group: serializeGroupSummary(refreshedGroup),
+    message: `Te has unido al grupo ${refreshedGroup.name}`,
+  });
+});
+
+groupsRouter.get('/groups/:id/join-code', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const access = await assertAdminGroup(req.params.id, userId);
+
+  if (access.error) {
+    return res.status(access.error.status).json(access.error.body);
+  }
+
+  const group = await prisma.group.findUnique({
+    where: { id: access.group.id },
+    select: {
+      id: true,
+      name: true,
+      joinCode: true,
+    },
+  });
+
+  if (!group) {
+    return res.status(404).json({ message: 'Grupo no encontrado' });
+  }
+
+  let joinCode = group.joinCode;
+
+  if (!joinCode) {
+    const updatedGroup = await prisma.group.update({
+      where: { id: group.id },
+      data: {
+        joinCode: await createUniqueJoinCode(),
+      },
+      select: { joinCode: true },
+    });
+
+    joinCode = updatedGroup.joinCode;
+  }
+
+  return res.json({
+    groupId: group.id,
+    groupName: group.name,
+    joinCode,
+  });
 });
 
 groupsRouter.get('/groups/:id/members', requireAuth, async (req, res) => {

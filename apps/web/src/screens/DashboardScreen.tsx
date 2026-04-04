@@ -13,6 +13,8 @@ type DashboardScreenProps = {
     balance: number;
     income: number;
     expense: number;
+    groupNet: number;
+    total: number;
   };
   transactions: Transaction[];
   user: AuthUser;
@@ -33,17 +35,17 @@ export const DashboardScreen = ({
   return (
     <div className="screen-stack">
       <section className="hero-balance">
-        <div className="hero-balance__label">Saldo total</div>
-        <div className="hero-balance__value">{formatMoney(summary.balance, user.currency)}</div>
+        <div className="hero-balance__label">Saldo consolidado</div>
+        <div className="hero-balance__value">{formatMoney(summary.total, user.currency)}</div>
         <div className="hero-balance__meta">
-          <span>Ingresos {formatMoney(summary.income, user.currency)}</span>
-          <span>Gastos {formatMoney(summary.expense, user.currency)}</span>
+          <span>Personal {formatMoney(summary.balance, user.currency)}</span>
+          <span>Grupos {formatMoney(summary.groupNet, user.currency)}</span>
         </div>
       </section>
 
       <div className="stats-grid">
-        <StatCard label="Disponible" value={formatMoney(summary.balance, user.currency)} tone="accent" />
-        <StatCard label="Este mes" value={formatMoney(summary.expense, user.currency)} tone="warning" />
+        <StatCard label="Saldo personal" value={formatMoney(summary.balance, user.currency)} tone="accent" />
+        <StatCard label="Neto grupos" value={formatMoney(summary.groupNet, user.currency)} tone="warning" />
         <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
       </div>
 
@@ -102,6 +104,9 @@ export const DashboardScreen = ({
                 Ver grupo
               </button>
             </div>
+            <div className="group-spotlight__caption">
+              Tu saldo consolidado combina caja personal con el neto pendiente de tus grupos.
+            </div>
             <div className="stats-grid stats-grid--compact">
               <StatCard
                 label="Gasto total"
@@ -110,9 +115,7 @@ export const DashboardScreen = ({
               />
               <StatCard label="Movimientos" value={`${featuredGroupSummary?.count || 0}`} tone="default" />
             </div>
-            <div className="group-spotlight__caption">
-              Usa la pestaña Grupos para registrar gastos compartidos y ver balances sugeridos.
-            </div>
+            <div className="group-spotlight__caption">Usa la pestaña Grupos para unirte con código y registrar gastos compartidos.</div>
           </div>
         ) : (
           <EmptyState
