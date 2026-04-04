@@ -3,19 +3,24 @@ import { BottomNav } from '@/components/BottomNav';
 import type { AppTab } from '@/types';
 
 type AppShellProps = {
-  activeTab: AppTab;
-  onTabChange: (tab: AppTab) => void;
+  activeTab?: AppTab;
+  onTabChange?: (tab: AppTab) => void;
   headerTitle: string;
   headerSubtitle: string;
   children: ReactNode;
+  showNav?: boolean;
 };
 
-export const AppShell = ({ activeTab, children, headerSubtitle, headerTitle, onTabChange }: AppShellProps) => (
-  <div className="app-shell">
-    <div className="app-shell__ambient app-shell__ambient--one" />
-    <div className="app-shell__ambient app-shell__ambient--two" />
-
-    <div className="app-shell__phone">
+export const AppShell = ({
+  activeTab,
+  children,
+  headerSubtitle,
+  headerTitle,
+  onTabChange,
+  showNav = true,
+}: AppShellProps) => (
+  <div className={`app-shell ${showNav ? 'app-shell--with-nav' : 'app-shell--no-nav'}`}>
+    <div className="app-shell__frame">
       <header className="app-header">
         <div className="app-header__eyebrow">Finanzas Integradas</div>
         <h1 className="app-header__title">{headerTitle}</h1>
@@ -23,8 +28,8 @@ export const AppShell = ({ activeTab, children, headerSubtitle, headerTitle, onT
       </header>
 
       <main className="app-content">{children}</main>
-
-      <BottomNav activeTab={activeTab} onChange={onTabChange} />
     </div>
+
+    {showNav && activeTab && onTabChange ? <BottomNav activeTab={activeTab} onChange={onTabChange} /> : null}
   </div>
 );

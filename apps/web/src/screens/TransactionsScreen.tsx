@@ -41,6 +41,12 @@ export const TransactionsScreen = ({
 
   return (
     <div className="screen-stack">
+      <section className="screen-intro">
+        <div className="screen-intro__eyebrow">Actividad personal</div>
+        <h2 className="screen-intro__title">Movimientos del día a día</h2>
+        <p className="screen-intro__body">Captura nuevos importes y revisa tu historial sin mezclar pasos ni perder contexto.</p>
+      </section>
+
       <div className="stats-grid">
         <StatCard label="Saldo" value={formatMoney(summary.balance, user.currency)} tone="accent" />
         <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
@@ -49,7 +55,7 @@ export const TransactionsScreen = ({
 
       <SectionCard
         title="Nuevo movimiento"
-        subtitle="Captura ingresos y gastos con una sola mano."
+        subtitle="Registra un ingreso o un gasto con una estructura más directa."
         action={
           <button type="button" className="button button--ghost button--small" onClick={onRefresh} disabled={busy}>
             Actualizar

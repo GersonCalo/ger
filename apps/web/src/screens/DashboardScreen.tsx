@@ -34,6 +34,12 @@ export const DashboardScreen = ({
 
   return (
     <div className="screen-stack">
+      <section className="screen-intro">
+        <div className="screen-intro__eyebrow">Resumen diario</div>
+        <h2 className="screen-intro__title">Hola, {user.name || user.email}</h2>
+        <p className="screen-intro__body">Tu balance consolidado combina caja personal y neto de grupos en una vista simple.</p>
+      </section>
+
       <section className="hero-balance">
         <div className="hero-balance__label">Saldo consolidado</div>
         <div className="hero-balance__value">{formatMoney(summary.total, user.currency)}</div>
@@ -49,10 +55,7 @@ export const DashboardScreen = ({
         <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
       </div>
 
-      <SectionCard
-        title={`Hola, ${user.name || user.email}`}
-        subtitle="Tu resumen diario se actualiza con datos reales de tu cuenta y con tus grupos persistidos."
-      >
+      <SectionCard title="Acciones rápidas" subtitle="Mantén a mano lo que más haces al entrar.">
         <div className="quick-actions">
           <button type="button" className="button button--primary" onClick={onGoToTransactions}>
             Añadir movimiento
@@ -92,7 +95,7 @@ export const DashboardScreen = ({
         )}
       </SectionCard>
 
-      <SectionCard title="Radar de grupos" subtitle="Vista rápida del frente compartido.">
+      <SectionCard title="Radar de grupos" subtitle="Entra al grupo que necesita tu atención sin recorrer toda la pantalla.">
         {featuredGroup ? (
           <div className="group-spotlight">
             <div className="group-spotlight__header">

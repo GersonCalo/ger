@@ -11,6 +11,12 @@ type ProfileScreenProps = {
 
 export const ProfileScreen = ({ health, onLogout, user }: ProfileScreenProps) => (
   <div className="screen-stack">
+    <section className="screen-intro">
+      <div className="screen-intro__eyebrow">Cuenta</div>
+      <h2 className="screen-intro__title">Tu espacio personal</h2>
+      <p className="screen-intro__body">Consulta tu cuenta y el estado general de la app con una estructura más limpia.</p>
+    </section>
+
     <SectionCard title="Perfil" subtitle="Configuración de cuenta y estado del entorno.">
       <div className="profile-card">
         <div className="profile-card__avatar">{(user.name || user.email).slice(0, 1).toUpperCase()}</div>
@@ -25,7 +31,7 @@ export const ProfileScreen = ({ health, onLogout, user }: ProfileScreenProps) =>
       </div>
     </SectionCard>
 
-    <SectionCard title="Estado técnico" subtitle="Visibilidad rápida para revisar backend y despliegue.">
+    <SectionCard title="Estado técnico" subtitle="Información secundaria sobre el entorno y la conexión.">
       <div className="list-stack">
         <article className="list-row">
           <div>
@@ -39,7 +45,7 @@ export const ProfileScreen = ({ health, onLogout, user }: ProfileScreenProps) =>
         <article className="list-row">
           <div>
             <div className="list-row__title">Experiencia móvil</div>
-            <div className="list-row__meta">Navegación inferior, botones amplios y superficies touch-friendly</div>
+            <div className="list-row__meta">Navegación inferior fija y layout responsive para móvil y escritorio</div>
           </div>
           <div className="status-badge status-badge--ok">lista</div>
         </article>

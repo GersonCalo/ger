@@ -18,26 +18,12 @@ export const AuthScreen = ({ busy, error, onLogin, onRegister }: AuthScreenProps
 
   return (
     <div className="screen-stack">
-      <section className="hero-panel">
-        <div className="hero-panel__badge">Mobile-first finance</div>
-        <h2 className="hero-panel__title">Organiza tu dinero y comparte gastos sin fricción.</h2>
-        <p className="hero-panel__copy">
-          Accede rápido, registra movimientos con una sola mano y controla grupos desde una navegación inferior pensada para móvil.
+      <section className="screen-intro">
+        <div className="screen-intro__eyebrow">Acceso</div>
+        <h2 className="screen-intro__title">Una forma más clara de controlar tu dinero.</h2>
+        <p className="screen-intro__body">
+          Accede a tus movimientos personales y a tus grupos compartidos desde una interfaz más serena y ordenada.
         </p>
-        <div className="hero-panel__grid">
-          <div className="hero-panel__metric">
-            <span>1</span>
-            cuenta
-          </div>
-          <div className="hero-panel__metric">
-            <span>∞</span>
-            movimientos
-          </div>
-          <div className="hero-panel__metric">
-            <span>24/7</span>
-            control
-          </div>
-        </div>
       </section>
 
       <SectionCard
