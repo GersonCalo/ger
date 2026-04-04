@@ -30,6 +30,8 @@ model PersonalTransaction {
   category   String?
   occurredAt DateTime
   note       String?
+
+  @@index([userId, occurredAt])
 }
 
 model Group {
@@ -43,6 +45,8 @@ model Group {
   members      GroupMember[]
   expenses     GroupExpense[]
   settlements  GroupSettlement[]
+
+  @@index([ownerUserId, createdAt])
 }
 
 model GroupMember {
@@ -59,6 +63,10 @@ model GroupMember {
   splits          GroupSplit[]
   settlementsFrom GroupSettlement[] @relation("FromMember")
   settlementsTo   GroupSettlement[] @relation("ToMember")
+
+  @@index([groupId])
+  @@index([userId])
+  @@unique([groupId, userId])
 }
 
 model GroupExpense {
@@ -73,6 +81,9 @@ model GroupExpense {
   splitMethod   String   // 'equal' | 'weights'
 
   splits        GroupSplit[]
+
+  @@index([groupId, occurredAt])
+  @@index([payerMemberId])
 }
 
 model GroupSplit {
@@ -83,6 +94,9 @@ model GroupSplit {
   member     GroupMember  @relation(fields: [memberId], references: [id])
   shareAmount Decimal? @db.Decimal(12,2)
   shareWeight Decimal? @db.Decimal(8,4)
+
+  @@index([expenseId])
+  @@index([memberId])
 }
 
 model GroupSettlement {
@@ -96,4 +110,8 @@ model GroupSettlement {
   amount        Decimal  @db.Decimal(12,2)
   occurredAt    DateTime
   status        String   @default("proposed") // 'proposed' | 'confirmed' | 'cancelled'
+
+  @@index([groupId, occurredAt])
+  @@index([fromMemberId])
+  @@index([toMemberId])
 }

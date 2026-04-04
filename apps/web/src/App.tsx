@@ -44,7 +44,7 @@ function App() {
               <div className="empty-state">
                 <div className="empty-state__glyph">⋯</div>
                 <div className="empty-state__title">Preparando tu panel</div>
-                <div className="empty-state__description">Cargando cuenta, movimientos y grupos guardados en este dispositivo.</div>
+                <div className="empty-state__description">Cargando cuenta, movimientos y grupos persistidos en la API.</div>
               </div>
             </section>
           </main>
@@ -113,10 +113,18 @@ function App() {
 
       {financeApp.activeTab === 'groups' ? (
         <GroupsScreen
+          error={financeApp.groupsError}
           groups={financeApp.groups}
+          groupsBusy={financeApp.groupsBusy}
           notice={financeApp.groupsNotice}
+          onAddMember={financeApp.addGroupMember}
           onAddExpense={financeApp.addGroupExpense}
+          onConfirmSettlement={financeApp.confirmSettlement}
           onCreateGroup={financeApp.createGroup}
+          onCreateSettlement={financeApp.createSettlement}
+          onSelectGroup={financeApp.setSelectedGroupId}
+          selectedGroupData={financeApp.selectedGroupData}
+          selectedGroupId={financeApp.selectedGroupId}
         />
       ) : null}
 

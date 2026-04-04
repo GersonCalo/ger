@@ -3,10 +3,10 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { AuthUser, LocalGroup, Transaction } from '@/types';
+import type { AuthUser, GroupSummary, Transaction } from '@/types';
 
 type DashboardScreenProps = {
-  groups: LocalGroup[];
+  groups: GroupSummary[];
   onGoToGroups: () => void;
   onGoToTransactions: () => void;
   summary: {
@@ -49,7 +49,7 @@ export const DashboardScreen = ({
 
       <SectionCard
         title={`Hola, ${user.name || user.email}`}
-        subtitle="Tu resumen diario se actualiza con datos reales de tu cuenta y con tus grupos locales."
+        subtitle="Tu resumen diario se actualiza con datos reales de tu cuenta y con tus grupos persistidos."
       >
         <div className="quick-actions">
           <button type="button" className="button button--primary" onClick={onGoToTransactions}>
@@ -96,7 +96,7 @@ export const DashboardScreen = ({
             <div className="group-spotlight__header">
               <div>
                 <div className="group-spotlight__title">{featuredGroup.name}</div>
-                <div className="group-spotlight__meta">{featuredGroup.members.length} miembros</div>
+                <div className="group-spotlight__meta">{featuredGroup.membersCount} miembros</div>
               </div>
               <button type="button" className="button button--ghost button--small" onClick={onGoToGroups}>
                 Ver grupo

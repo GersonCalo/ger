@@ -6,21 +6,16 @@ Base URL local: http://localhost:8080
 - GET /health
   - Respuesta: `{ status: "ok", env: "development|production" }`
 
-## Autenticación (planificado)
+## Autenticación
 - POST /auth/register
 - POST /auth/login
-- POST /auth/refresh
-- POST /auth/logout
-- GET /users/me
+- GET /me
 
-## Finanzas personales (planificado)
+## Finanzas personales
 - GET /transactions
 - POST /transactions
-- PUT /transactions/:id
-- DELETE /transactions/:id
-- GET /balance
 
-## Grupos (planificado)
+## Grupos
 - GET /groups
 - POST /groups
 - GET /groups/:id/members
@@ -36,6 +31,7 @@ Base URL local: http://localhost:8080
 - PUT /groups/:id/settlements/:sid
 
 Notas:
-- Validación de entrada con Zod (a implementar en siguientes iteraciones).
-- Autorización mediante JWT (a implementar).
-
+- Validación de entrada implementada con Zod en auth, transacciones y grupos.
+- Autorización implementada mediante JWT Bearer.
+- `GET /groups/:id/balances` devuelve miembros, gastos, liquidaciones, balances y sugerencias de liquidación.
+- Las liquidaciones impactan el neto del grupo solo cuando su estado es `confirmed`.

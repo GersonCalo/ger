@@ -1,4 +1,14 @@
-import type { ApiHealth, AuthResponse, AuthUser, Transaction } from '@/types';
+import type {
+  ApiHealth,
+  AuthResponse,
+  AuthUser,
+  GroupBalancesPayload,
+  GroupExpense,
+  GroupMember,
+  GroupSettlement,
+  GroupSummary,
+  Transaction,
+} from '@/types';
 
 const API_URL: string = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_URL || 'http://localhost:8080';
 const API_BASE = `${API_URL}/api/v1`;
@@ -77,5 +87,100 @@ export const api = {
 
     const data = await parseJson<{ transaction: Transaction }>(response);
     return data.transaction;
+  },
+  async groups(token: string) {
+    const response = await fetch(`${API_BASE}/groups`, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ groups: GroupSummary[] }>(response);
+    return data.groups;
+  },
+  async createGroup(
+    token: string,
+    input: {
+      name: string;
+      currency?: string;
+      members?: Array<{ userId?: string; displayName?: string; weight?: number | null; role?: 'member' | 'admin' }>;
+    }
+  ) {
+    const response = await fetch(`${API_BASE}/groups`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ group: GroupSummary }>(response);
+    return data.group;
+  },
+  async groupBalances(token: string, groupId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/balances`, {
+      headers: createHeaders(token),
+    });
+
+    return parseJson<GroupBalancesPayload>(response);
+  },
+  async createGroupExpense(
+    token: string,
+    groupId: string,
+    input: {
+      payerMemberId: string;
+      amount: number;
+      description?: string;
+      occurredAt: string;
+      splitMethod: 'equal' | 'weights';
+    }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/expenses`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ expense: GroupExpense }>(response);
+    return data.expense;
+  },
+  async createGroupMember(
+    token: string,
+    groupId: string,
+    input: { userId?: string; displayName?: string; weight?: number | null; role?: 'member' | 'admin' }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/members`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ member: GroupMember }>(response);
+    return data.member;
+  },
+  async createSettlement(
+    token: string,
+    groupId: string,
+    input: { fromMemberId: string; toMemberId: string; amount: number; occurredAt: string }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/settlements`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ settlement: GroupSettlement }>(response);
+    return data.settlement;
+  },
+  async updateSettlementStatus(
+    token: string,
+    groupId: string,
+    settlementId: string,
+    status: 'confirmed' | 'cancelled'
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/settlements/${settlementId}`, {
+      method: 'PUT',
+      headers: createHeaders(token),
+      body: JSON.stringify({ status }),
+    });
+
+    const data = await parseJson<{ settlement: GroupSettlement }>(response);
+    return data.settlement;
   },
 };

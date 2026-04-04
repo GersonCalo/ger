@@ -2,63 +2,90 @@ import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
-import { calculateGroupBalances, createSettlementSuggestions, summarizeTransactions } from '@/lib/groups';
+import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { LocalGroup } from '@/types';
+import type { GroupBalancesPayload, GroupSummary } from '@/types';
 
 type GroupsScreenProps = {
-  groups: LocalGroup[];
+  error: string | null;
+  groups: GroupSummary[];
+  groupsBusy: boolean;
   notice: string;
+  onAddMember: (input: { groupId: string; displayName: string }) => Promise<void>;
   onAddExpense: (input: {
     groupId: string;
     description: string;
     amount: number;
     payerMemberId: string;
     splitMethod: 'equal' | 'weights';
-  }) => void;
-  onCreateGroup: (input: { name: string; guestMembers: string[] }) => void;
+  }) => Promise<void>;
+  onConfirmSettlement: (groupId: string, settlementId: string) => Promise<void>;
+  onCreateGroup: (input: { name: string; guestMembers: string[] }) => Promise<void>;
+  onCreateSettlement: (input: { groupId: string; fromMemberId: string; toMemberId: string; amount: number }) => Promise<void>;
+  onSelectGroup: (groupId: string) => void;
+  selectedGroupData: GroupBalancesPayload | null;
+  selectedGroupId: string | null;
 };
 
-export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: GroupsScreenProps) => {
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(groups[0]?.id || null);
+export const GroupsScreen = ({
+  error,
+  groups,
+  groupsBusy,
+  notice,
+  onAddExpense,
+  onAddMember,
+  onConfirmSettlement,
+  onCreateGroup,
+  onCreateSettlement,
+  onSelectGroup,
+  selectedGroupData,
+  selectedGroupId,
+}: GroupsScreenProps) => {
   const [groupName, setGroupName] = useState('');
   const [guestMembers, setGuestMembers] = useState('');
+  const [memberName, setMemberName] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [payerMemberId, setPayerMemberId] = useState('');
   const [splitMethod, setSplitMethod] = useState<'equal' | 'weights'>('equal');
+  const [settlementAmount, setSettlementAmount] = useState('');
+  const [settlementFromId, setSettlementFromId] = useState('');
+  const [settlementToId, setSettlementToId] = useState('');
 
   const selectedGroup = useMemo(
     () => groups.find(group => group.id === selectedGroupId) || groups[0] || null,
     [groups, selectedGroupId]
   );
 
-  const balances = useMemo(
-    () => (selectedGroup ? calculateGroupBalances(selectedGroup) : []),
-    [selectedGroup]
-  );
-
-  const suggestions = useMemo(() => createSettlementSuggestions(balances), [balances]);
   const summary = selectedGroup ? summarizeTransactions(selectedGroup) : { total: 0, count: 0 };
+  const balances = selectedGroupData?.balances || [];
+  const suggestions = selectedGroupData?.suggestions || [];
+  const settlements = selectedGroupData?.settlements || [];
 
   useEffect(() => {
     if (!groups.length) {
-      setSelectedGroupId(null);
       return;
     }
 
     if (!selectedGroupId || !groups.some(group => group.id === selectedGroupId)) {
-      setSelectedGroupId(groups[0].id);
-      setPayerMemberId(groups[0].members[0]?.id || '');
+      onSelectGroup(groups[0].id);
     }
-  }, [groups, selectedGroupId]);
+  }, [groups, onSelectGroup, selectedGroupId]);
+
+  useEffect(() => {
+    if (!selectedGroupData) return;
+
+    setPayerMemberId(current => current || selectedGroupData.members[0]?.id || '');
+    setSettlementFromId(current => current || selectedGroupData.members[0]?.id || '');
+    setSettlementToId(current => current || selectedGroupData.members[1]?.id || selectedGroupData.members[0]?.id || '');
+  }, [selectedGroupData]);
 
   return (
     <div className="screen-stack">
       <SectionCard title="Grupos compartidos" subtitle={notice}>
         <form
           className="form-stack"
-          onSubmit={event => {
+          onSubmit={async event => {
             event.preventDefault();
             const members = guestMembers
               .split(',')
@@ -67,7 +94,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
 
             if (!groupName.trim()) return;
 
-            onCreateGroup({ name: groupName.trim(), guestMembers: members });
+            await onCreateGroup({ name: groupName.trim(), guestMembers: members });
             setGroupName('');
             setGuestMembers('');
           }}
@@ -95,7 +122,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
           </label>
 
           <button type="submit" className="button button--primary">
-            Crear grupo
+            {groupsBusy ? 'Guardando...' : 'Crear grupo'}
           </button>
         </form>
       </SectionCard>
@@ -117,7 +144,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                   type="button"
                   className={`chip ${group.id === selectedGroup?.id ? 'chip--active' : ''}`}
                   onClick={() => {
-                    setSelectedGroupId(group.id);
+                    onSelectGroup(group.id);
                     setPayerMemberId(group.members[0]?.id || '');
                   }}
                 >
@@ -139,21 +166,45 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                 <div className="member-pill-row">
                   {selectedGroup.members.map(member => (
                     <div key={member.id} className="member-pill">
-                      {member.name}
+                      {member.displayName}
                     </div>
                   ))}
                 </div>
 
                 <form
                   className="form-stack"
-                  onSubmit={event => {
+                  onSubmit={async event => {
+                    event.preventDefault();
+                    if (!memberName.trim()) return;
+                    await onAddMember({ groupId: selectedGroup.id, displayName: memberName.trim() });
+                    setMemberName('');
+                  }}
+                >
+                  <label className="field">
+                    <span className="field__label">Nuevo invitado</span>
+                    <input
+                      className="field__input"
+                      type="text"
+                      placeholder="Añade otro participante"
+                      value={memberName}
+                      onChange={event => setMemberName(event.target.value)}
+                    />
+                  </label>
+                  <button type="submit" className="button button--ghost">
+                    Añadir miembro
+                  </button>
+                </form>
+
+                <form
+                  className="form-stack"
+                  onSubmit={async event => {
                     event.preventDefault();
                     const amount = Number(expenseAmount);
                     const defaultPayer = payerMemberId || selectedGroup.members[0]?.id;
 
                     if (!expenseDescription.trim() || !defaultPayer || !Number.isFinite(amount) || amount <= 0) return;
 
-                    onAddExpense({
+                    await onAddExpense({
                       groupId: selectedGroup.id,
                       description: expenseDescription.trim(),
                       amount,
@@ -198,7 +249,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                     >
                       {selectedGroup.members.map(member => (
                         <option key={member.id} value={member.id}>
-                          {member.name}
+                          {member.displayName}
                         </option>
                       ))}
                     </select>
@@ -222,7 +273,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                   </div>
 
                   <button type="submit" className="button button--primary">
-                    Añadir gasto
+                    {groupsBusy ? 'Guardando...' : 'Añadir gasto'}
                   </button>
                 </form>
               </SectionCard>
@@ -234,7 +285,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                       <div>
                         <div className="list-row__title">{balance.memberName}</div>
                         <div className="list-row__meta">
-                          Pagó {formatMoney(balance.paid, selectedGroup.currency)} · Debe {formatMoney(balance.owes, selectedGroup.currency)}
+                          Pagó {formatMoney(balance.paid, selectedGroup.currency)} · Debe {formatMoney(balance.owes, selectedGroup.currency)} · Liquidado {formatMoney(balance.settledIn - balance.settledOut, selectedGroup.currency)}
                         </div>
                       </div>
                       <div className={`amount-pill ${balance.net >= 0 ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
@@ -251,10 +302,10 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                 ) : (
                   <div className="list-stack">
                     {suggestions.map((suggestion, index) => (
-                      <article key={`${suggestion.from}-${suggestion.to}-${index}`} className="list-row">
+                      <article key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${index}`} className="list-row">
                         <div>
                           <div className="list-row__title">
-                            {suggestion.from} → {suggestion.to}
+                            {suggestion.fromMemberName} → {suggestion.toMemberName}
                           </div>
                           <div className="list-row__meta">Recomendación de liquidación</div>
                         </div>
@@ -263,6 +314,106 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                         </div>
                       </article>
                     ))}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Nueva liquidación" subtitle="Registra o confirma pagos entre miembros.">
+                <form
+                  className="form-stack"
+                  onSubmit={async event => {
+                    event.preventDefault();
+                    const amount = Number(settlementAmount);
+
+                    if (!settlementFromId || !settlementToId || settlementFromId === settlementToId || !Number.isFinite(amount) || amount <= 0) {
+                      return;
+                    }
+
+                    await onCreateSettlement({
+                      groupId: selectedGroup.id,
+                      fromMemberId: settlementFromId,
+                      toMemberId: settlementToId,
+                      amount,
+                    });
+
+                    setSettlementAmount('');
+                  }}
+                >
+                  <label className="field">
+                    <span className="field__label">De</span>
+                    <select className="field__input" value={settlementFromId} onChange={event => setSettlementFromId(event.target.value)}>
+                      {selectedGroup.members.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">A</span>
+                    <select className="field__input" value={settlementToId} onChange={event => setSettlementToId(event.target.value)}>
+                      {selectedGroup.members.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span className="field__label">Monto</span>
+                    <input
+                      className="field__input"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={settlementAmount}
+                      onChange={event => setSettlementAmount(event.target.value)}
+                    />
+                  </label>
+
+                  <button type="submit" className="button button--ghost">
+                    Crear liquidación
+                  </button>
+                </form>
+
+                {settlements.length === 0 ? (
+                  <EmptyState title="Sin liquidaciones" description="Cuando registres una aparecerá aquí con su estado." />
+                ) : (
+                  <div className="list-stack">
+                    {settlements.map(settlement => {
+                      const fromMember = selectedGroup.members.find(member => member.id === settlement.fromMemberId);
+                      const toMember = selectedGroup.members.find(member => member.id === settlement.toMemberId);
+
+                      return (
+                        <article key={settlement.id} className="list-row list-row--stacked">
+                          <div className="list-row__content">
+                            <div className="list-row__title">
+                              {fromMember?.displayName || 'Miembro'} → {toMember?.displayName || 'Miembro'}
+                            </div>
+                            <div className="list-row__meta">
+                              {formatDate(settlement.occurredAt)} · Estado {settlement.status}
+                            </div>
+                          </div>
+                          <div className="list-row__content">
+                            <div className="amount-pill amount-pill--accent">
+                              {formatMoney(settlement.amount, selectedGroup.currency)}
+                            </div>
+                            {settlement.status === 'proposed' ? (
+                              <button
+                                type="button"
+                                className="button button--ghost button--small"
+                                onClick={() => onConfirmSettlement(selectedGroup.id, settlement.id)}
+                              >
+                                Confirmar
+                              </button>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </SectionCard>
@@ -277,9 +428,9 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
                       return (
                         <article key={expense.id} className="list-row list-row--stacked">
                           <div className="list-row__content">
-                            <div className="list-row__title">{expense.description}</div>
+                            <div className="list-row__title">{expense.description || 'Gasto compartido'}</div>
                             <div className="list-row__meta">
-                              {formatDate(expense.occurredAt)} · Pagó {payer?.name || 'Miembro'}
+                              {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'}
                             </div>
                           </div>
                           <div className="amount-pill amount-pill--accent">
@@ -295,6 +446,7 @@ export const GroupsScreen = ({ groups, notice, onAddExpense, onCreateGroup }: Gr
           ) : null}
         </>
       )}
+      {error ? <div className="form-error">{error}</div> : null}
     </div>
   );
 };

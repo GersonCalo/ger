@@ -29,27 +29,48 @@ export type ApiHealth = {
 
 export type GroupMember = {
   id: string;
-  name: string;
-  kind: 'me' | 'guest';
-  weight: number;
+  userId: string | null;
+  displayName: string;
+  kind: 'user' | 'guest';
+  weight: number | null;
+  role: 'member' | 'admin';
+};
+
+export type GroupExpenseSplit = {
+  id: string;
+  memberId: string;
+  shareAmount: number | null;
+  shareWeight: number | null;
 };
 
 export type GroupExpense = {
   id: string;
-  description: string;
+  description: string | null;
   amount: number;
   payerMemberId: string;
   splitMethod: 'equal' | 'weights';
   occurredAt: string;
+  splits: GroupExpenseSplit[];
 };
 
-export type LocalGroup = {
+export type GroupSummary = {
   id: string;
   name: string;
   currency: string;
   createdAt: string;
+  membersCount: number;
+  expensesCount: number;
   members: GroupMember[];
   expenses: GroupExpense[];
+};
+
+export type GroupSettlement = {
+  id: string;
+  fromMemberId: string;
+  toMemberId: string;
+  amount: number;
+  occurredAt: string;
+  status: 'proposed' | 'confirmed' | 'cancelled';
 };
 
 export type GroupBalance = {
@@ -57,5 +78,29 @@ export type GroupBalance = {
   memberName: string;
   paid: number;
   owes: number;
+  settledIn: number;
+  settledOut: number;
   net: number;
+};
+
+export type GroupSuggestion = {
+  fromMemberId: string;
+  fromMemberName: string;
+  toMemberId: string;
+  toMemberName: string;
+  amount: number;
+};
+
+export type GroupBalancesPayload = {
+  group: {
+    id: string;
+    name: string;
+    currency: string;
+    createdAt: string;
+  };
+  members: GroupMember[];
+  expenses: GroupExpense[];
+  settlements: GroupSettlement[];
+  balances: GroupBalance[];
+  suggestions: GroupSuggestion[];
 };

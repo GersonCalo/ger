@@ -4,7 +4,7 @@ Aplicación web que combina gestión de finanzas personales con administración 
 
 ## Características
 - Finanzas personales: ingresos, gastos y saldo consolidado.
-- Grupos: miembros reales o invitados, gastos, reparto y balances.
+- Grupos: miembros reales o invitados, gastos, reparto, balances y liquidaciones persistidas.
 - Repartos: equitativo o por porcentajes/pesos.
 - Arquitectura contenedorizada con Docker para despliegue en cualquier proveedor.
 
@@ -38,6 +38,8 @@ Aplicación web que combina gestión de finanzas personales con administración 
    - API: http://localhost:8080/health
    - Web (dev): http://localhost:3000
 
+La pestaña Grupos usa persistencia real en PostgreSQL a través de la API del backend.
+
 Para producción local:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
@@ -51,8 +53,8 @@ Luego accede a http://localhost.
 - API (endpoints): docs/api.md
 
 ## Enlaces de código
-- API: [src/index.ts](file:///c:/Users/gerson.calo/Documents/trae_projects/ger/apps/api/src/index.ts)
-- Schema Prisma: [schema.prisma](file:///c:/Users/gerson.calo/Documents/trae_projects/ger/packages/db/schema.prisma)
-- Compose (dev): [docker-compose.yml](file:///c:/Users/gerson.calo/Documents/trae_projects/ger/docker-compose.yml)
-- Compose (prod): [docker-compose.prod.yml](file:///c:/Users/gerson.calo/Documents/trae_projects/ger/docker-compose.prod.yml)
-
+- API: [index.ts](file:///c:/Users/gerson/Documents/trae_projects/ger/apps/api/src/index.ts)
+- Router API: [index.ts](file:///c:/Users/gerson/Documents/trae_projects/ger/apps/api/src/routes/index.ts)
+- Schema Prisma: [schema.prisma](file:///c:/Users/gerson/Documents/trae_projects/ger/packages/db/schema.prisma)
+- Compose (dev): [docker-compose.yml](file:///c:/Users/gerson/Documents/trae_projects/ger/docker-compose.yml)
+- Compose (prod): [docker-compose.prod.yml](file:///c:/Users/gerson/Documents/trae_projects/ger/docker-compose.prod.yml)

@@ -46,9 +46,9 @@ export const ProfileScreen = ({ health, onLogout, user }: ProfileScreenProps) =>
         <article className="list-row">
           <div>
             <div className="list-row__title">Grupos</div>
-            <div className="list-row__meta">Disponibles en modo local hasta conectar el backend completo</div>
+            <div className="list-row__meta">Persistidos en PostgreSQL y servidos por la API de grupos</div>
           </div>
-          <div className="status-badge status-badge--warn">local</div>
+          <div className="status-badge status-badge--ok">api</div>
         </article>
       </div>
     </SectionCard>
