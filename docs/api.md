@@ -43,3 +43,4 @@ Notas:
 - Las liquidaciones impactan el neto del grupo solo cuando su estado es `confirmed`.
 - Los importes de reparto se calculan y cierran siempre a dos decimales.
 - Los nuevos usuarios y grupos usan EUR por defecto.
+- El frontend refresca automáticamente grupos y saldo consolidado cada 10 segundos mientras la pestaña está visible y también al recuperar foco.

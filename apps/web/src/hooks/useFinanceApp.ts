@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import type {
@@ -26,6 +26,7 @@ const setHash = (tab: AppTab) => {
 };
 
 const GROUPS_NOTICE = 'Tus grupos se sincronizan con la API, tienen código fijo de acceso y afectan tu balance global.';
+const AUTO_REFRESH_INTERVAL_MS = 10_000;
 const EMPTY_BALANCE_SUMMARY: GlobalBalancePayload = {
   personalIncome: 0,
   personalExpense: 0,
@@ -53,6 +54,7 @@ export const useFinanceApp = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<string | null>(null);
   const [groupsError, setGroupsError] = useState<string | null>(null);
+  const autoRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
     const onHashChange = () => setActiveTabState(getInitialTab());
@@ -86,7 +88,7 @@ export const useFinanceApp = () => {
     setHash('home');
   }, []);
 
-  const refreshBalance = useCallback(async () => {
+  const refreshBalance = useCallback(async (options?: { silent?: boolean }) => {
     if (!token) return EMPTY_BALANCE_SUMMARY;
 
     try {
@@ -94,15 +96,20 @@ export const useFinanceApp = () => {
       setBalanceSummary(nextBalance);
       return nextBalance;
     } catch {
+      if (!options?.silent) {
+        setTransactionError('No se pudo actualizar el saldo');
+      }
       return EMPTY_BALANCE_SUMMARY;
     }
   }, [token]);
 
-  const refreshGroups = useCallback(async () => {
+  const refreshGroups = useCallback(async (options?: { silent?: boolean }) => {
     if (!token) return [] as GroupSummary[];
 
-    setGroupsBusy(true);
-    setGroupsError(null);
+    if (!options?.silent) {
+      setGroupsBusy(true);
+      setGroupsError(null);
+    }
 
     try {
       const nextGroups = await api.groups(token);
@@ -112,22 +119,28 @@ export const useFinanceApp = () => {
       );
       return nextGroups;
     } catch (error) {
-      setGroupsError(error instanceof Error ? error.message : 'No se pudieron cargar los grupos');
+      if (!options?.silent) {
+        setGroupsError(error instanceof Error ? error.message : 'No se pudieron cargar los grupos');
+      }
       return [] as GroupSummary[];
     } finally {
-      setGroupsBusy(false);
+      if (!options?.silent) {
+        setGroupsBusy(false);
+      }
     }
   }, [token]);
 
   const refreshSelectedGroup = useCallback(
-    async (groupId: string) => {
+    async (groupId: string, options?: { silent?: boolean; groupsSource?: GroupSummary[] }) => {
       if (!token) return null;
 
-      setGroupsBusy(true);
-      setGroupsError(null);
+      if (!options?.silent) {
+        setGroupsBusy(true);
+        setGroupsError(null);
+      }
 
       try {
-        const selectedGroup = groups.find(group => group.id === groupId);
+        const selectedGroup = (options?.groupsSource || groups).find(group => group.id === groupId);
         const currentMembership = selectedGroup?.members.find(member => member.userId === user?.id);
         const shouldLoadJoinCode = currentMembership?.role === 'admin';
 
@@ -140,11 +153,15 @@ export const useFinanceApp = () => {
         setSelectedGroupJoinCode(joinCodePayload?.joinCode || null);
         return payload;
       } catch (error) {
-        setGroupsError(error instanceof Error ? error.message : 'No se pudo cargar el detalle del grupo');
+        if (!options?.silent) {
+          setGroupsError(error instanceof Error ? error.message : 'No se pudo cargar el detalle del grupo');
+        }
         setSelectedGroupJoinCode(null);
         return null;
       } finally {
-        setGroupsBusy(false);
+        if (!options?.silent) {
+          setGroupsBusy(false);
+        }
       }
     },
     [groups, token, user?.id]
@@ -219,6 +236,87 @@ export const useFinanceApp = () => {
 
     refreshSelectedGroup(selectedGroupId);
   }, [refreshSelectedGroup, selectedGroupId, token]);
+
+  const runAutomaticRefresh = useCallback(async () => {
+    if (!token || booting || authBusy || dataBusy || groupsBusy) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    if (activeTab !== 'groups' && activeTab !== 'home') return;
+    if (autoRefreshInFlightRef.current) return;
+
+    autoRefreshInFlightRef.current = true;
+
+    try {
+      if (activeTab === 'groups') {
+        const nextGroups = await refreshGroups({ silent: true });
+        const resolvedGroupId =
+          selectedGroupId && nextGroups.some(group => group.id === selectedGroupId)
+            ? selectedGroupId
+            : (nextGroups[0]?.id ?? null);
+
+        if (resolvedGroupId) {
+          await Promise.all([
+            refreshSelectedGroup(resolvedGroupId, { silent: true, groupsSource: nextGroups }),
+            refreshBalance({ silent: true }),
+          ]);
+        } else {
+          setSelectedGroupData(null);
+          setSelectedGroupJoinCode(null);
+          await refreshBalance({ silent: true });
+        }
+
+        return;
+      }
+
+      await Promise.all([refreshGroups({ silent: true }), refreshBalance({ silent: true })]);
+    } finally {
+      autoRefreshInFlightRef.current = false;
+    }
+  }, [
+    activeTab,
+    authBusy,
+    booting,
+    dataBusy,
+    groupsBusy,
+    refreshBalance,
+    refreshGroups,
+    refreshSelectedGroup,
+    selectedGroupId,
+    token,
+  ]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== 'groups' && activeTab !== 'home') return;
+
+    const intervalId = window.setInterval(() => {
+      void runAutomaticRefresh();
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, runAutomaticRefresh, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== 'groups' && activeTab !== 'home') return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void runAutomaticRefresh();
+      }
+    };
+
+    const handleFocus = () => {
+      void runAutomaticRefresh();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [activeTab, runAutomaticRefresh, token]);
 
   const onAuthSuccess = useCallback(
     (response: { token: string; user: AuthUser }) => {
