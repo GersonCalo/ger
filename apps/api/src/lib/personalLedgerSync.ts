@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 const GROUP_EXPENSE_SOURCE = 'group_expense';
 const GROUP_SETTLEMENT_PAID_SOURCE = 'group_settlement_paid';
@@ -43,13 +43,29 @@ export const syncGroupExpenseLedger = async (tx: TransactionClient, expenseId: s
     return;
   }
 
-  await tx.personalTransaction.create({
-    data: {
+  await tx.personalTransaction.upsert({
+    where: {
+      userId_sourceType_sourceRefId: {
+        userId: expense.payer.userId,
+        sourceType: GROUP_EXPENSE_SOURCE,
+        sourceRefId: expense.id,
+      },
+    },
+    create: {
       userId: expense.payer.userId,
       groupId: expense.groupId,
       type: 'expense',
       sourceType: GROUP_EXPENSE_SOURCE,
       sourceRefId: expense.id,
+      locked: true,
+      amount: expense.amount,
+      category: buildExpenseCategory(expense.description),
+      note: expense.group.name,
+      occurredAt: expense.occurredAt,
+    },
+    update: {
+      groupId: expense.groupId,
+      type: 'expense',
       locked: true,
       amount: expense.amount,
       category: buildExpenseCategory(expense.description),
@@ -100,8 +116,15 @@ export const syncGroupSettlementLedger = async (tx: TransactionClient, settlemen
   }
 
   if (settlement.fromMember.userId) {
-    await tx.personalTransaction.create({
-      data: {
+    await tx.personalTransaction.upsert({
+      where: {
+        userId_sourceType_sourceRefId: {
+          userId: settlement.fromMember.userId,
+          sourceType: GROUP_SETTLEMENT_PAID_SOURCE,
+          sourceRefId: settlement.id,
+        },
+      },
+      create: {
         userId: settlement.fromMember.userId,
         groupId: settlement.groupId,
         type: 'expense',
@@ -113,17 +136,42 @@ export const syncGroupSettlementLedger = async (tx: TransactionClient, settlemen
         note: settlement.group.name,
         occurredAt: settlement.occurredAt,
       },
+      update: {
+        groupId: settlement.groupId,
+        type: 'expense',
+        locked: true,
+        amount: settlement.amount,
+        category: buildSettlementCategory(),
+        note: settlement.group.name,
+        occurredAt: settlement.occurredAt,
+      },
     });
   }
 
   if (settlement.toMember.userId) {
-    await tx.personalTransaction.create({
-      data: {
+    await tx.personalTransaction.upsert({
+      where: {
+        userId_sourceType_sourceRefId: {
+          userId: settlement.toMember.userId,
+          sourceType: GROUP_SETTLEMENT_RECEIVED_SOURCE,
+          sourceRefId: settlement.id,
+        },
+      },
+      create: {
         userId: settlement.toMember.userId,
         groupId: settlement.groupId,
         type: 'income',
         sourceType: GROUP_SETTLEMENT_RECEIVED_SOURCE,
         sourceRefId: settlement.id,
+        locked: true,
+        amount: settlement.amount,
+        category: buildSettlementCategory(),
+        note: settlement.group.name,
+        occurredAt: settlement.occurredAt,
+      },
+      update: {
+        groupId: settlement.groupId,
+        type: 'income',
         locked: true,
         amount: settlement.amount,
         category: buildSettlementCategory(),
