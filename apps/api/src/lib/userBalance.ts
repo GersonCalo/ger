@@ -148,7 +148,7 @@ export const calculateUserBalance = async (userId: string) => {
   const groupsBreakdown = memberships.map(calculateGroupNetForMembership);
   const groupNetCents = groupsBreakdown.reduce((sum: number, group: UserGroupNet) => sum + group.netCents, 0);
   const personalBalanceCents = personalIncomeCents - personalExpenseCents;
-  const totalBalanceCents = personalBalanceCents + groupNetCents;
+  const totalBalanceCents = personalBalanceCents + Math.max(groupNetCents, 0);
 
   return {
     personalIncome: fromCents(personalIncomeCents),

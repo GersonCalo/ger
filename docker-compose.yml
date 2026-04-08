@@ -25,7 +25,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["sh","-c","cd /usr/src/app/apps/api && npx prisma db push --schema=../../packages/db/schema.prisma"]
+    command: ["sh","-c","cd /usr/src/app/apps/api && npx prisma db push --accept-data-loss --schema=../../packages/db/schema.prisma"]
 
   api:
     build:

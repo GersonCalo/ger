@@ -9,19 +9,19 @@ import { TransactionsScreen } from '@/screens/TransactionsScreen';
 const tabCopy = {
   home: {
     title: 'Inicio',
-    subtitle: 'Tu dinero y tus grupos en una vista más clara.',
+    subtitle: 'Balance y actividad.',
   },
   transactions: {
     title: 'Movimientos',
-    subtitle: 'Registra y revisa tu actividad personal con menos fricción.',
+    subtitle: 'Registrar y revisar.',
   },
   groups: {
     title: 'Grupos',
-    subtitle: 'Tus grupos.',
+    subtitle: 'Compartidos.',
   },
   profile: {
     title: 'Perfil',
-    subtitle: 'Cuenta, entorno y ajustes esenciales.',
+    subtitle: 'Cuenta y ajustes.',
   },
 } as const;
 
@@ -48,7 +48,7 @@ function App() {
     return (
       <AppShell
         headerTitle="Tu dinero, claro"
-        headerSubtitle="Finanzas personales y grupos compartidos con una experiencia más limpia."
+        headerSubtitle="Finanzas personales y gastos compartidos en una experiencia serena."
         showNav={false}
       >
         <AuthScreen

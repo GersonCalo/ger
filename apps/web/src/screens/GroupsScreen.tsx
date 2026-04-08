@@ -321,7 +321,7 @@ export const GroupsScreen = ({
                 <StatCard label="Tus grupos" value={`${groups.length}`} />
                 <StatCard label="Total movimientos" value={`${groups.reduce((sum, group) => sum + group.expensesCount, 0)}`} />
               </div>
-              {notice ? <div className="list-row__meta">{notice}</div> : null}
+              {notice ? <div className="helper-note">{notice}</div> : null}
               <div className="group-list">
                 {groups.map(group => {
                   const groupSummary = summarizeTransactions(group);
@@ -340,7 +340,7 @@ export const GroupsScreen = ({
                       <div className="group-card__stats">
                         <span>Total {formatMoney(groupSummary.total, group.currency)}</span>
                         <span>Actividad {groupSummary.count}</span>
-                        <span>Creado {formatDate(group.createdAt)}</span>
+                          <span>{formatDate(group.createdAt)}</span>
                       </div>
                     </button>
                   );
@@ -400,7 +400,7 @@ export const GroupsScreen = ({
           </div>
 
           {detailTab === 'summary' ? (
-            <>
+            <div className="tab-panel">
               <div className="stats-grid">
                 <StatCard label="Total" value={formatMoney(summary.total, selectedGroup.currency)} />
                 <StatCard label="Gastos" value={`${summary.count}`} />
@@ -424,11 +424,11 @@ export const GroupsScreen = ({
                   ))}
                 </div>
               </SectionCard>
-            </>
+            </div>
           ) : null}
 
           {detailTab === 'expenses' ? (
-            <>
+            <div className="tab-panel">
               <SectionCard title={editingExpenseId ? 'Editar gasto' : 'Añadir gasto'}>
                 <form
                   className="form-stack"
@@ -614,11 +614,11 @@ export const GroupsScreen = ({
                   </div>
                 )}
               </SectionCard>
-            </>
+            </div>
           ) : null}
 
           {detailTab === 'payments' ? (
-            <>
+            <div className="tab-panel">
               <SectionCard title="Sugerencias">
                 {suggestions.length === 0 ? (
                   <EmptyState title="Todo al día" description="No hay pagos sugeridos." />
@@ -763,11 +763,11 @@ export const GroupsScreen = ({
                   </div>
                 )}
               </SectionCard>
-            </>
+            </div>
           ) : null}
 
           {detailTab === 'settings' ? (
-            <>
+            <div className="tab-panel">
               <SectionCard title="Miembros">
                 <div className="list-stack">
                   <div className="member-pill-row">
@@ -826,7 +826,7 @@ export const GroupsScreen = ({
                   <EmptyState title="No disponible" description="Solo visible para admins." />
                 )}
               </SectionCard>
-            </>
+            </div>
           ) : null}
         </>
       ) : (

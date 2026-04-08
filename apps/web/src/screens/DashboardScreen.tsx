@@ -34,43 +34,35 @@ export const DashboardScreen = ({
 
   return (
     <div className="screen-stack">
-      <section className="screen-intro">
-        <div className="screen-intro__eyebrow">Resumen diario</div>
-        <h2 className="screen-intro__title">Hola, {user.name || user.email}</h2>
-        <p className="screen-intro__body">Tu balance consolidado combina caja personal y neto de grupos en una vista simple.</p>
-      </section>
-
-      <section className="hero-balance">
-        <div className="hero-balance__label">Saldo consolidado</div>
-        <div className="hero-balance__value">{formatMoney(summary.total, user.currency)}</div>
-        <div className="hero-balance__meta">
-          <span>Personal {formatMoney(summary.balance, user.currency)}</span>
+      <section className="dashboard-hero">
+        <div className="dashboard-hero__topline">Hola, {user.name || user.email}</div>
+        <div className="dashboard-hero__label">Disponible</div>
+        <div className="dashboard-hero__value">{formatMoney(summary.balance, user.currency)}</div>
+        <div className="dashboard-hero__meta">
+          <span>Total {formatMoney(summary.total, user.currency)}</span>
           <span>Grupos {formatMoney(summary.groupNet, user.currency)}</span>
         </div>
-      </section>
-
-      <div className="stats-grid">
-        <StatCard label="Saldo personal" value={formatMoney(summary.balance, user.currency)} tone="accent" />
-        <StatCard label="Neto grupos" value={formatMoney(summary.groupNet, user.currency)} tone="warning" />
-        <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
-      </div>
-
-      <SectionCard title="Acciones rápidas" subtitle="Mantén a mano lo que más haces al entrar.">
-        <div className="quick-actions">
+        <div className="quick-actions quick-actions--floating">
           <button type="button" className="button button--primary" onClick={onGoToTransactions}>
             Añadir movimiento
           </button>
           <button type="button" className="button button--ghost" onClick={onGoToGroups}>
-            Gestionar grupos
+            Ver grupos
           </button>
         </div>
-      </SectionCard>
+      </section>
 
-      <SectionCard title="Actividad reciente" subtitle="Tus últimos movimientos personales.">
+      <div className="stats-grid">
+        <StatCard label="Total" value={formatMoney(summary.total, user.currency)} tone="accent" />
+        <StatCard label="Balance grupos" value={formatMoney(summary.groupNet, user.currency)} tone="warning" />
+        <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
+      </div>
+
+      <SectionCard title="Actividad">
         {latestTransactions.length === 0 ? (
           <EmptyState
-            title="Todavía no hay actividad"
-            description="Crea tu primer ingreso o gasto y aparecerá aquí con prioridad."
+            title="Sin movimientos"
+            description="Añade el primero."
             actionLabel="Crear movimiento"
             onAction={onGoToTransactions}
           />
@@ -95,7 +87,7 @@ export const DashboardScreen = ({
         )}
       </SectionCard>
 
-      <SectionCard title="Radar de grupos" subtitle="Entra al grupo que necesita tu atención sin recorrer toda la pantalla.">
+      <SectionCard title="Grupos">
         {featuredGroup ? (
           <div className="group-spotlight">
             <div className="group-spotlight__header">
@@ -107,9 +99,6 @@ export const DashboardScreen = ({
                 Ver grupo
               </button>
             </div>
-            <div className="group-spotlight__caption">
-              Tu saldo consolidado combina caja personal con el neto pendiente de tus grupos.
-            </div>
             <div className="stats-grid stats-grid--compact">
               <StatCard
                 label="Gasto total"
@@ -118,12 +107,11 @@ export const DashboardScreen = ({
               />
               <StatCard label="Movimientos" value={`${featuredGroupSummary?.count || 0}`} tone="default" />
             </div>
-            <div className="group-spotlight__caption">Usa la pestaña Grupos para unirte con código y registrar gastos compartidos.</div>
           </div>
         ) : (
           <EmptyState
             title="Crea tu primer grupo"
-            description="Añade amigos, pareja o compañeros de piso y empieza a repartir gastos desde el móvil."
+            description="Empieza a compartir gastos."
             actionLabel="Ir a grupos"
             onAction={onGoToGroups}
           />

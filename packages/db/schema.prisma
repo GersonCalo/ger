@@ -22,16 +22,24 @@ model User {
 }
 
 model PersonalTransaction {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  type       String   // 'income' | 'expense'
-  amount     Decimal  @db.Decimal(12,2)
-  category   String?
-  occurredAt DateTime
-  note       String?
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  groupId     String?
+  group       Group?   @relation(fields: [groupId], references: [id])
+  type        String
+  sourceType  String   @default("manual")
+  sourceRefId String?
+  locked      Boolean  @default(false)
+  amount      Decimal  @db.Decimal(12,2)
+  category    String?
+  occurredAt  DateTime
+  note        String?
 
   @@index([userId, occurredAt])
+  @@index([groupId])
+  @@index([sourceType, sourceRefId])
+  @@unique([userId, sourceType, sourceRefId])
 }
 
 model Group {
@@ -43,9 +51,10 @@ model Group {
   joinCode     String?  @unique
   createdAt    DateTime @default(now())
 
-  members      GroupMember[]
-  expenses     GroupExpense[]
-  settlements  GroupSettlement[]
+  members               GroupMember[]
+  expenses              GroupExpense[]
+  settlements           GroupSettlement[]
+  personalTransactions  PersonalTransaction[]
 
   @@index([ownerUserId, createdAt])
 }

@@ -3,6 +3,7 @@ import { randomInt } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { calculateGroupBalances, calculateSettlementSuggestions, fromCents, roundMoney, toCents } from '../lib/groupBalances.js';
+import { syncGroupExpenseLedger, syncGroupSettlementLedger } from '../lib/personalLedgerSync.js';
 import {
   serializeGroupExpense,
   serializeGroupMember,
@@ -856,34 +857,39 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     return res.status(400).json({ message: splitResult.error });
   }
 
-  const expense = await prisma.groupExpense.create({
-    data: {
-      groupId: access.group.id,
-      payerMemberId: parsed.data.payerMemberId,
-      amount,
-      description: parsed.data.description?.trim() || null,
-      occurredAt,
-      splitMethod: parsed.data.splitMethod,
-      splits: {
-        create: splitResult.splits,
-      },
-    },
-    select: {
-      id: true,
-      payerMemberId: true,
-      amount: true,
-      description: true,
-      occurredAt: true,
-      splitMethod: true,
-      splits: {
-        select: {
-          id: true,
-          memberId: true,
-          shareAmount: true,
-          shareWeight: true,
+  const expense = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const created = await tx.groupExpense.create({
+      data: {
+        groupId: access.group.id,
+        payerMemberId: parsed.data.payerMemberId,
+        amount,
+        description: parsed.data.description?.trim() || null,
+        occurredAt,
+        splitMethod: parsed.data.splitMethod,
+        splits: {
+          create: splitResult.splits,
         },
       },
-    },
+      select: {
+        id: true,
+        payerMemberId: true,
+        amount: true,
+        description: true,
+        occurredAt: true,
+        splitMethod: true,
+        splits: {
+          select: {
+            id: true,
+            memberId: true,
+            shareAmount: true,
+            shareWeight: true,
+          },
+        },
+      },
+    });
+
+    await syncGroupExpenseLedger(tx, created.id);
+    return created;
   });
 
   return res.status(201).json({ expense: serializeGroupExpense(expense) });
@@ -949,7 +955,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
       where: { expenseId: expense.id },
     });
 
-    return tx.groupExpense.update({
+    const nextExpense = await tx.groupExpense.update({
       where: { id: expense.id },
       data: {
         payerMemberId: parsed.data.payerMemberId,
@@ -978,6 +984,9 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
         },
       },
     });
+
+    await syncGroupExpenseLedger(tx, nextExpense.id);
+    return nextExpense;
   });
 
   return res.json({ expense: serializeGroupExpense(updated) });
@@ -1004,6 +1013,13 @@ groupsRouter.delete('/groups/:id/expenses/:eid', requireAuth, async (req, res) =
   }
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.personalTransaction.deleteMany({
+      where: {
+        sourceType: 'group_expense',
+        sourceRefId: expense.id,
+      },
+    });
+
     await tx.groupSplit.deleteMany({
       where: { expenseId: expense.id },
     });
@@ -1289,23 +1305,28 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     });
   }
 
-  const settlement = await prisma.groupSettlement.create({
-    data: {
-      groupId: access.group.id,
-      fromMemberId: parsed.data.fromMemberId,
-      toMemberId: parsed.data.toMemberId,
-      amount,
-      occurredAt,
-      status: 'confirmed',
-    },
-    select: {
-      id: true,
-      fromMemberId: true,
-      toMemberId: true,
-      amount: true,
-      occurredAt: true,
-      status: true,
-    },
+  const settlement = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const created = await tx.groupSettlement.create({
+      data: {
+        groupId: access.group.id,
+        fromMemberId: parsed.data.fromMemberId,
+        toMemberId: parsed.data.toMemberId,
+        amount,
+        occurredAt,
+        status: 'confirmed',
+      },
+      select: {
+        id: true,
+        fromMemberId: true,
+        toMemberId: true,
+        amount: true,
+        occurredAt: true,
+        status: true,
+      },
+    });
+
+    await syncGroupSettlementLedger(tx, created.id);
+    return created;
   });
 
   return res.status(201).json({ settlement: serializeGroupSettlement(settlement) });
@@ -1343,19 +1364,24 @@ groupsRouter.put('/groups/:id/settlements/:sid', requireAuth, async (req, res) =
     return res.status(404).json({ message: 'Liquidación no encontrada' });
   }
 
-  const updated = await prisma.groupSettlement.update({
-    where: { id: settlement.id },
-    data: {
-      status: parsed.data.status,
-    },
-    select: {
-      id: true,
-      fromMemberId: true,
-      toMemberId: true,
-      amount: true,
-      occurredAt: true,
-      status: true,
-    },
+  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const nextSettlement = await tx.groupSettlement.update({
+      where: { id: settlement.id },
+      data: {
+        status: parsed.data.status,
+      },
+      select: {
+        id: true,
+        fromMemberId: true,
+        toMemberId: true,
+        amount: true,
+        occurredAt: true,
+        status: true,
+      },
+    });
+
+    await syncGroupSettlementLedger(tx, nextSettlement.id);
+    return nextSettlement;
   });
 
   return res.json({ settlement: serializeGroupSettlement(updated) });

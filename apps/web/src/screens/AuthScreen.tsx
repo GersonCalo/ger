@@ -18,35 +18,13 @@ export const AuthScreen = ({ busy, error, onLogin, onRegister }: AuthScreenProps
 
   return (
     <div className="screen-stack">
-      <section className="screen-intro">
-        <div className="screen-intro__eyebrow">Acceso</div>
-        <h2 className="screen-intro__title">Una forma más clara de controlar tu dinero.</h2>
-        <p className="screen-intro__body">
-          Accede a tus movimientos personales y a tus grupos compartidos desde una interfaz más serena y ordenada.
-        </p>
+      <section className="auth-hero">
+        <div className="auth-hero__eyebrow">Personal + compartido</div>
+        <h2 className="auth-hero__title">Controla tu dinero sin ruido.</h2>
+        <p className="auth-hero__body">Todo tu balance y tus gastos compartidos en una sola rutina diaria.</p>
       </section>
 
-      <SectionCard
-        title={mode === 'login' ? 'Entrar' : 'Crear cuenta'}
-        subtitle={mode === 'login' ? 'Vuelve a tu resumen diario.' : 'Empieza con tu espacio financiero personal.'}
-      >
-        <div className="auth-toggle">
-          <button
-            type="button"
-            className={`segmented-control__item ${mode === 'login' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setMode('login')}
-          >
-            Entrar
-          </button>
-          <button
-            type="button"
-            className={`segmented-control__item ${mode === 'register' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setMode('register')}
-          >
-            Crear cuenta
-          </button>
-        </div>
-
+      <SectionCard title={mode === 'login' ? 'Entrar' : 'Crear cuenta'} subtitle={mode === 'login' ? 'Acceso rápido.' : 'Empieza en un minuto.'}>
         {mode === 'login' ? (
           <form
             className="form-stack"
@@ -85,6 +63,13 @@ export const AuthScreen = ({ busy, error, onLogin, onRegister }: AuthScreenProps
             <button type="submit" className="button button--primary" disabled={busy}>
               {busy ? 'Entrando...' : 'Iniciar sesión'}
             </button>
+
+            <div className="inline-switch">
+              <span>Aún no tienes cuenta</span>
+              <button type="button" className="button button--ghost button--small" onClick={() => setMode('register')}>
+                Crear cuenta
+              </button>
+            </div>
           </form>
         ) : (
           <form
@@ -140,6 +125,13 @@ export const AuthScreen = ({ busy, error, onLogin, onRegister }: AuthScreenProps
             <button type="submit" className="button button--primary" disabled={busy}>
               {busy ? 'Creando...' : 'Crear cuenta'}
             </button>
+
+            <div className="inline-switch">
+              <span>Ya tienes cuenta</span>
+              <button type="button" className="button button--ghost button--small" onClick={() => setMode('login')}>
+                Entrar
+              </button>
+            </div>
           </form>
         )}
       </SectionCard>

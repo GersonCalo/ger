@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
@@ -33,6 +33,8 @@ export const TransactionsScreen = ({
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [justAdded, setJustAdded] = useState(false);
+  const successTimerRef = useRef<number | null>(null);
 
   const filteredTransactions = useMemo(() => {
     if (filter === 'all') return transactions;
@@ -42,20 +44,18 @@ export const TransactionsScreen = ({
   return (
     <div className="screen-stack">
       <section className="screen-intro">
-        <div className="screen-intro__eyebrow">Actividad personal</div>
-        <h2 className="screen-intro__title">Movimientos del día a día</h2>
-        <p className="screen-intro__body">Captura nuevos importes y revisa tu historial sin mezclar pasos ni perder contexto.</p>
+        <div className="screen-intro__eyebrow">Actividad</div>
+        <h2 className="screen-intro__title">Tus movimientos</h2>
       </section>
 
       <div className="stats-grid">
-        <StatCard label="Saldo" value={formatMoney(summary.balance, user.currency)} tone="accent" />
+        <StatCard label="Disponible" value={formatMoney(summary.balance, user.currency)} tone="accent" />
         <StatCard label="Ingresos" value={formatMoney(summary.income, user.currency)} tone="positive" />
         <StatCard label="Gastos" value={formatMoney(summary.expense, user.currency)} tone="warning" />
       </div>
 
       <SectionCard
         title="Nuevo movimiento"
-        subtitle="Registra un ingreso o un gasto con una estructura más directa."
         action={
           <button type="button" className="button button--ghost button--small" onClick={onRefresh} disabled={busy}>
             Actualizar
@@ -93,45 +93,55 @@ export const TransactionsScreen = ({
               note: note || undefined,
             });
 
+            if (successTimerRef.current) {
+              window.clearTimeout(successTimerRef.current);
+            }
+
+            setJustAdded(true);
+            successTimerRef.current = window.setTimeout(() => setJustAdded(false), 1400);
             setAmount('');
             setCategory('');
             setNote('');
           }}
         >
-          <label className="field">
-            <span className="field__label">Monto</span>
-            <input
-              className="field__input"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              placeholder="0.00"
-              value={amount}
-              onChange={event => setAmount(event.target.value)}
-            />
-          </label>
+          <div className={`entry-shell ${justAdded ? 'entry-shell--success' : ''}`}>
+            <label className="field">
+              <span className="field__label">Monto</span>
+              <input
+                className="field__input field__input--amount"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                placeholder="0.00"
+                value={amount}
+                onChange={event => setAmount(event.target.value)}
+              />
+            </label>
 
-          <label className="field">
-            <span className="field__label">Categoría</span>
-            <input
-              className="field__input"
-              type="text"
-              placeholder="Comida, nómina, transporte..."
-              value={category}
-              onChange={event => setCategory(event.target.value)}
-            />
-          </label>
+            <div className="section-split">
+              <label className="field">
+                <span className="field__label">Categoría</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  placeholder="Comida, nómina, transporte..."
+                  value={category}
+                  onChange={event => setCategory(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span className="field__label">Nota</span>
-            <input
-              className="field__input"
-              type="text"
-              placeholder="Añade contexto si lo necesitas"
-              value={note}
-              onChange={event => setNote(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span className="field__label">Nota</span>
+                <input
+                  className="field__input"
+                  type="text"
+                  placeholder="Opcional"
+                  value={note}
+                  onChange={event => setNote(event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
 
           {error ? <div className="form-error">{error}</div> : null}
 
@@ -141,7 +151,7 @@ export const TransactionsScreen = ({
         </form>
       </SectionCard>
 
-      <SectionCard title="Historial" subtitle="Filtra y revisa tu actividad personal.">
+      <SectionCard title="Historial">
         <div className="segmented-control">
           <button
             type="button"
@@ -167,26 +177,35 @@ export const TransactionsScreen = ({
         </div>
 
         {filteredTransactions.length === 0 ? (
-          <EmptyState
-            title="No hay movimientos en este filtro"
-            description="Prueba a cambiar el filtro o registra una nueva transacción."
-          />
+          <EmptyState title="No hay movimientos en este filtro" description="Prueba otro filtro." />
         ) : (
           <div className="list-stack">
             {filteredTransactions.map(transaction => {
               const amountValue = Number(transaction.amount) || 0;
+              const sourceLabel =
+                transaction.sourceType === 'group_expense'
+                  ? `Grupo · ${transaction.groupName || 'Gasto compartido'}`
+                  : transaction.sourceType === 'group_settlement_paid' || transaction.sourceType === 'group_settlement_received'
+                    ? `Liquidación · ${transaction.groupName || 'Grupo'}`
+                    : 'Manual';
+
               return (
                 <article key={transaction.id} className="list-row list-row--stacked">
                   <div className="list-row__content">
                     <div className="list-row__title">
                       {transaction.category || (transaction.type === 'income' ? 'Ingreso' : 'Gasto')}
                     </div>
-                    <div className="list-row__meta">{formatDate(transaction.occurredAt)}</div>
+                    <div className="list-row__meta">
+                      {formatDate(transaction.occurredAt)} · {sourceLabel}
+                    </div>
                     {transaction.note ? <div className="list-row__note">{transaction.note}</div> : null}
                   </div>
-                  <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
-                    {transaction.type === 'income' ? '+' : '-'}
-                    {formatMoney(amountValue, user.currency)}
+                  <div className="list-actions">
+                    {transaction.locked ? <div className="chip">Grupo</div> : null}
+                    <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}
+                      {formatMoney(amountValue, user.currency)}
+                    </div>
                   </div>
                 </article>
               );

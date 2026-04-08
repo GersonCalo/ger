@@ -15,6 +15,11 @@ export type Transaction = {
   category: string | null;
   note: string | null;
   occurredAt: string;
+  sourceType: 'manual' | 'group_expense' | 'group_settlement_paid' | 'group_settlement_received';
+  sourceRefId: string | null;
+  locked: boolean;
+  groupId: string | null;
+  groupName: string | null;
 };
 
 export type AuthResponse = {

@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
+import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
 import { calculateUserBalance } from '../lib/userBalance.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 
@@ -8,6 +10,7 @@ export const transactionsRouter = Router();
 
 transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
+  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
   const balance = await calculateUserBalance(userId);
 
   return res.json(balance);
@@ -15,6 +18,7 @@ transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
 
 transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
+  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
 
   const transactions = await prisma.personalTransaction.findMany({
     where: { userId },
@@ -27,10 +31,45 @@ transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
       category: true,
       occurredAt: true,
       note: true,
+      sourceType: true,
+      sourceRefId: true,
+      locked: true,
+      groupId: true,
+      group: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
-  return res.json({ transactions });
+  return res.json({
+    transactions: transactions.map((transaction: {
+      id: string;
+      type: string;
+      amount: { toString(): string };
+      category: string | null;
+      occurredAt: Date;
+      note: string | null;
+      sourceType: string;
+      sourceRefId: string | null;
+      locked: boolean;
+      groupId: string | null;
+      group: { name: string } | null;
+    }) => ({
+      id: transaction.id,
+      type: transaction.type,
+      amount: transaction.amount,
+      category: transaction.category,
+      occurredAt: transaction.occurredAt,
+      note: transaction.note,
+      sourceType: transaction.sourceType,
+      sourceRefId: transaction.sourceRefId,
+      locked: transaction.locked,
+      groupId: transaction.groupId,
+      groupName: transaction.group?.name || null,
+    })),
+  });
 });
 
 transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
@@ -68,8 +107,38 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
       note: parsed.data.note?.trim() || null,
       occurredAt,
     },
-    select: { id: true, type: true, amount: true, category: true, occurredAt: true, note: true },
+    select: {
+      id: true,
+      type: true,
+      amount: true,
+      category: true,
+      occurredAt: true,
+      note: true,
+      sourceType: true,
+      sourceRefId: true,
+      locked: true,
+      groupId: true,
+      group: {
+        select: {
+          name: true,
+        },
+      },
+    },
   });
 
-  return res.status(201).json({ transaction });
+  return res.status(201).json({
+    transaction: {
+      id: transaction.id,
+      type: transaction.type,
+      amount: transaction.amount,
+      category: transaction.category,
+      occurredAt: transaction.occurredAt,
+      note: transaction.note,
+      sourceType: transaction.sourceType,
+      sourceRefId: transaction.sourceRefId,
+      locked: transaction.locked,
+      groupId: transaction.groupId,
+      groupName: transaction.group?.name || null,
+    },
+  });
 });

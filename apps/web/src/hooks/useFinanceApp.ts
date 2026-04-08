@@ -26,7 +26,7 @@ const setHash = (tab: AppTab) => {
   }
 };
 
-const GROUPS_NOTICE = 'Tus grupos se sincronizan con la API, tienen código fijo de acceso y afectan tu balance global.';
+const GROUPS_NOTICE = 'Tus gastos y liquidaciones de grupo también ajustan tu disponible personal.';
 const AUTO_REFRESH_INTERVAL_MS = 10_000;
 const EMPTY_BALANCE_SUMMARY: GlobalBalancePayload = {
   personalIncome: 0,
@@ -462,7 +462,12 @@ export const useFinanceApp = () => {
           splits: input.splits,
         });
 
-        await Promise.all([refreshGroups(), refreshSelectedGroup(input.groupId), refreshBalance()]);
+        await Promise.all([
+          refreshGroups(),
+          refreshSelectedGroup(input.groupId),
+          refreshBalance(),
+          api.transactions(token).then(setTransactions),
+        ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo registrar el gasto');
       } finally {
@@ -497,7 +502,12 @@ export const useFinanceApp = () => {
           splits: input.splits,
         });
 
-        await Promise.all([refreshGroups(), refreshSelectedGroup(input.groupId), refreshBalance()]);
+        await Promise.all([
+          refreshGroups(),
+          refreshSelectedGroup(input.groupId),
+          refreshBalance(),
+          api.transactions(token).then(setTransactions),
+        ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo actualizar el gasto');
       } finally {
@@ -567,7 +577,11 @@ export const useFinanceApp = () => {
           occurredAt: new Date().toISOString(),
         });
 
-        await Promise.all([refreshSelectedGroup(input.groupId), refreshBalance()]);
+        await Promise.all([
+          refreshSelectedGroup(input.groupId),
+          refreshBalance(),
+          api.transactions(token).then(setTransactions),
+        ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo crear la liquidación');
       } finally {
@@ -586,7 +600,11 @@ export const useFinanceApp = () => {
 
       try {
         await api.updateSettlementStatus(token, groupId, settlementId, 'confirmed');
-        await Promise.all([refreshSelectedGroup(groupId), refreshBalance()]);
+        await Promise.all([
+          refreshSelectedGroup(groupId),
+          refreshBalance(),
+          api.transactions(token).then(setTransactions),
+        ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo confirmar la liquidación');
       } finally {
