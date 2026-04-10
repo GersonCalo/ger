@@ -162,6 +162,111 @@ categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => 
     });
 });
 
+// PATCH /categories/:id - Update a personal category
+categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const categoryId = req.params.id;
+
+  const updateSchema = z.object({
+    name: z.string().trim().min(1).optional(),
+    color: z.string().trim().optional(),
+    icon: z.string().trim().optional(),
+  });
+
+  const parsed = updateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+  }
+
+  try {
+    // Find the category and verify it belongs to the user
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        userId: userId,
+        groupId: null,
+      },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+    }
+
+    // Check if trying to update name and it already exists
+    if (parsed.data.name && parsed.data.name !== category.name) {
+      const existing = await prisma.category.findFirst({
+        where: {
+          name: parsed.data.name,
+          userId: userId,
+          groupId: null,
+        },
+      });
+
+      if (existing) {
+        return res.status(409).json({ message: 'Ya existe una categoría personal con ese nombre' });
+      }
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: {
+        name: parsed.data.name ?? category.name,
+        color: parsed.data.color ?? category.color,
+        icon: parsed.data.icon ?? category.icon,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.json({
+      category: {
+        ...updatedCategory,
+        color: updatedCategory.color || '',
+        icon: updatedCategory.icon || '',
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error actualizando categoría' });
+  }
+});
+
+// DELETE /categories/:id - Delete a personal category
+categoriesRouter.delete('/categories/:id', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const categoryId = req.params.id;
+
+  try {
+    // Find the category and verify it belongs to the user
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        userId: userId,
+        groupId: null,
+      },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+    }
+
+    // Delete the category
+    await prisma.category.delete({
+      where: { id: categoryId },
+    });
+
+    return res.json({ message: 'Categoría eliminada correctamente' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error eliminando categoría' });
+  }
+});
+
 // POST /groups/:id/categories - Create a group category
 categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
@@ -216,5 +321,133 @@ categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) =>
       return res.status(409).json({ message: 'Ya existe una categoría en el grupo con ese nombre' });
     }
     return res.status(500).json({ message: 'Error creando categoría de grupo' });
+  }
+});
+
+// PATCH /groups/:groupId/categories/:id - Update a group category
+categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const groupId = req.params.groupId;
+  const categoryId = req.params.id;
+
+  const updateSchema = z.object({
+    name: z.string().trim().min(1).optional(),
+    color: z.string().trim().optional(),
+    icon: z.string().trim().optional(),
+  });
+
+  const parsed = updateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+  }
+
+  try {
+    // Validate group access
+    const group = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      },
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: 'Grupo no encontrado' });
+    }
+
+    // Find the category and verify it belongs to the group
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        groupId: groupId,
+      },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+    }
+
+    // Check if trying to update name and it already exists in this group
+    if (parsed.data.name && parsed.data.name !== category.name) {
+      const existing = await prisma.category.findFirst({
+        where: {
+          name: parsed.data.name,
+          groupId: groupId,
+        },
+      });
+
+      if (existing) {
+        return res.status(409).json({ message: 'Ya existe una categoría en el grupo con ese nombre' });
+      }
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: {
+        name: parsed.data.name ?? category.name,
+        color: parsed.data.color ?? category.color,
+        icon: parsed.data.icon ?? category.icon,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.json({
+      category: {
+        ...updatedCategory,
+        color: updatedCategory.color || '',
+        icon: updatedCategory.icon || '',
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error actualizando categoría' });
+  }
+});
+
+// DELETE /groups/:groupId/categories/:id - Delete a group category
+categoriesRouter.delete('/groups/:groupId/categories/:id', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const groupId = req.params.groupId;
+  const categoryId = req.params.id;
+
+  try {
+    // Validate group access
+    const group = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      },
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: 'Grupo no encontrado' });
+    }
+
+    // Find the category and verify it belongs to the group
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        groupId: groupId,
+      },
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+    }
+
+    // Delete the category
+    await prisma.category.delete({
+      where: { id: categoryId },
+    });
+
+    return res.json({ message: 'Categoría eliminada correctamente' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error eliminando categoría' });
   }
 });

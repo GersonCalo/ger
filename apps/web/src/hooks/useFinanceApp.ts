@@ -465,6 +465,70 @@ export const useFinanceApp = () => {
     [token]
   );
 
+  const updateGroupCategory = useCallback(
+    async (groupId: string, categoryId: string, input: { name?: string; color?: string; icon?: string }) => {
+      if (!token) throw new Error('No auth');
+      try {
+        const res = await api.updateGroupCategory(token, groupId, categoryId, input);
+        // @ts-ignore
+        const cat = res.category || res;
+        setCategories(prev =>
+          prev.map(c => c.id === categoryId ? cat : c)
+            .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name))
+        );
+        return cat;
+      } catch (error: any) {
+        throw new Error(error.message || 'Error actualizando categoría de grupo');
+      }
+    },
+    [token]
+  );
+
+  const deleteGroupCategory = useCallback(
+    async (groupId: string, categoryId: string) => {
+      if (!token) throw new Error('No auth');
+      try {
+        await api.deleteGroupCategory(token, groupId, categoryId);
+        setCategories(prev => prev.filter(c => c.id !== categoryId));
+      } catch (error: any) {
+        throw new Error(error.message || 'Error eliminando categoría de grupo');
+      }
+    },
+    [token]
+  );
+
+  const updateCategory = useCallback(
+    async (categoryId: string, input: { name?: string; color?: string; icon?: string }) => {
+      if (!token) throw new Error('No auth');
+      try {
+        const res = await api.updateCategory(token, categoryId, input);
+        // @ts-ignore
+        const cat = res.category || res;
+        setCategories(prev =>
+          prev.map(c => c.id === categoryId ? cat : c)
+            .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name))
+        );
+        return cat;
+      } catch (error: any) {
+        throw new Error(error.message || 'Error actualizando categoría');
+      }
+    },
+    [token]
+  );
+
+  const deleteCategory = useCallback(
+    async (categoryId: string) => {
+      if (!token) throw new Error('No auth');
+      try {
+        await api.deleteCategory(token, categoryId);
+        setCategories(prev => prev.filter(c => c.id !== categoryId));
+      } catch (error: any) {
+        throw new Error(error.message || 'Error eliminando categoría');
+      }
+    },
+    [token]
+  );
+
   const createGroup = useCallback(
     async (input: { name: string; guestMembers: string[] }) => {
       if (!token) return;
@@ -695,6 +759,8 @@ export const useFinanceApp = () => {
     createTransaction,
     dashboardSummary,
     dataBusy,
+    deleteCategory,
+    deleteGroupCategory,
     groups,
     groupsBusy,
     groupsError,
@@ -717,6 +783,8 @@ export const useFinanceApp = () => {
     setSelectedGroupId,
     transactionError,
     transactions,
+    updateCategory,
+    updateGroupCategory,
     updateGroupExpense,
     user,
   };

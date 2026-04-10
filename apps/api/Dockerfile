@@ -1,7 +1,7 @@
 # Etapa Base
-FROM node:20-bookworm-slim AS base
+FROM node:20-alpine AS base
 WORKDIR /usr/src/app
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache openssl
 
 # Etapa de dependencias
 FROM base AS deps
@@ -30,8 +30,8 @@ RUN npm run build --workspace=apps/api
 FROM base AS runtime
 ENV NODE_ENV=production
 
-# Seguridad: Crear usuario no-root
-RUN groupadd -g 1001 nodejs && useradd -m -u 1001 -g 1001 nodejs
+# Seguridad: Crear usuario no-root (Alpine usa addgroup/adduser)
+RUN addgroup -g 1001 nodejs && adduser -D -u 1001 -G nodejs nodejs
 USER nodejs
 
 # Copiamos los archivos construidos y los módulos

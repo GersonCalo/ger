@@ -6,6 +6,9 @@ import { formatDate, formatMoney } from '@/lib/format';
 import { summarizeTransactions } from '@/lib/groups';
 import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary, Category } from '@/types';
 
+const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', '#64748B', '#EF4444', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
+const CATEGORY_ICONS = ['💰', '💼', '🎁', '📈', '🛍️', '🎮', '🛒', '🚌', '🍽️', '👕', '🏠', '🏥', '📚', '📺', '✈️', '🔧', '💻', '🎓', '🚗', '🏦'];
+
 type GroupsScreenProps = {
   error: string | null;
   groups: GroupSummary[];
@@ -39,6 +42,8 @@ type GroupsScreenProps = {
     occurredAt: string;
   }) => Promise<void>;
   onCreateGroupCategory: (groupId: string, input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
+  onUpdateGroupCategory: (groupId: string, categoryId: string, input: { name?: string; color?: string; icon?: string }) => Promise<any>;
+  onDeleteGroupCategory: (groupId: string, categoryId: string) => Promise<void>;
   selectedGroupData: GroupBalancesPayload | null;
   selectedGroupId: string | null;
   selectedGroupJoinCode: string | null;
@@ -79,6 +84,8 @@ export const GroupsScreen = ({
   onSelectGroup,
   onUpdateExpense,
   onCreateGroupCategory,
+  onUpdateGroupCategory,
+  onDeleteGroupCategory,
   selectedGroupData,
   selectedGroupId,
   selectedGroupJoinCode,
@@ -105,6 +112,17 @@ export const GroupsScreen = ({
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementFromId, setSettlementFromId] = useState('');
   const [settlementToId, setSettlementToId] = useState('');
+  
+  // Group category management state
+  const [groupCategoryTab, setGroupCategoryTab] = useState<'income' | 'expense'>('expense');
+  const [editingGroupCategory, setEditingGroupCategory] = useState<Category | null>(null);
+  const [showCreateGroupCategory, setShowCreateGroupCategory] = useState(false);
+  const [deleteGroupCategoryConfirm, setDeleteGroupCategoryConfirm] = useState<string | null>(null);
+  const [groupCategoryFormName, setGroupCategoryFormName] = useState('');
+  const [groupCategoryFormColor, setGroupCategoryFormColor] = useState(CATEGORY_COLORS[0]);
+  const [groupCategoryFormIcon, setGroupCategoryFormIcon] = useState(CATEGORY_ICONS[0]);
+  const [groupCategoryBusy, setGroupCategoryBusy] = useState(false);
+  const [groupCategoryError, setGroupCategoryError] = useState<string | null>(null);
 
   const selectedGroup = useMemo(() => groups.find(group => group.id === selectedGroupId) || null, [groups, selectedGroupId]);
   const summary = selectedGroup ? summarizeTransactions(selectedGroup) : { total: 0, count: 0 };
@@ -243,6 +261,15 @@ export const GroupsScreen = ({
     onSelectGroup(groupId);
     setDetailTab('summary');
     setView('detail');
+  };
+
+  const resetGroupCategoryForm = () => {
+    setGroupCategoryFormName('');
+    setGroupCategoryFormColor(CATEGORY_COLORS[0]);
+    setGroupCategoryFormIcon(CATEGORY_ICONS[0]);
+    setEditingGroupCategory(null);
+    setShowCreateGroupCategory(false);
+    setGroupCategoryError(null);
   };
 
   return (
@@ -930,6 +957,209 @@ export const GroupsScreen = ({
                 ) : (
                   <EmptyState title="No disponible" description="Solo visible para admins." />
                 )}
+              </SectionCard>
+
+              <SectionCard title="Categorías del grupo">
+                <div className="category-manager">
+                  {/* Tabs Ingresos/Gastos */}
+                  <div className="category-tabs">
+                    <button
+                      type="button"
+                      className={`category-tabs__btn ${groupCategoryTab === 'income' ? 'category-tabs__btn--active' : ''}`}
+                      onClick={() => { setGroupCategoryTab('income'); resetGroupCategoryForm(); }}
+                    >
+                      Ingresos
+                    </button>
+                    <button
+                      type="button"
+                      className={`category-tabs__btn ${groupCategoryTab === 'expense' ? 'category-tabs__btn--active' : ''}`}
+                      onClick={() => { setGroupCategoryTab('expense'); resetGroupCategoryForm(); }}
+                    >
+                      Gastos
+                    </button>
+                  </div>
+
+                  {/* Botón Nueva Categoría */}
+                  {!showCreateGroupCategory && !editingGroupCategory && (
+                    <button
+                      type="button"
+                      className="button button--primary button--full"
+                      onClick={() => { setShowCreateGroupCategory(true); setGroupCategoryError(null); }}
+                    >
+                      + Nueva categoría
+                    </button>
+                  )}
+
+                  {/* Formulario Crear/Editar */}
+                  {(showCreateGroupCategory || editingGroupCategory) && (
+                    <form className="category-form" onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!groupCategoryFormName.trim() || !selectedGroupId) return;
+
+                      setGroupCategoryBusy(true);
+                      setGroupCategoryError(null);
+                      try {
+                        if (editingGroupCategory) {
+                          await onUpdateGroupCategory(selectedGroupId, editingGroupCategory.id, {
+                            name: groupCategoryFormName.trim(),
+                            color: groupCategoryFormColor,
+                            icon: groupCategoryFormIcon,
+                          });
+                        } else {
+                          await onCreateGroupCategory(selectedGroupId, {
+                            name: groupCategoryFormName.trim(),
+                            type: groupCategoryTab,
+                            color: groupCategoryFormColor,
+                            icon: groupCategoryFormIcon,
+                          });
+                        }
+                        resetGroupCategoryForm();
+                      } catch (err: any) {
+                        setGroupCategoryError(err.message || 'Error guardando categoría');
+                      } finally {
+                        setGroupCategoryBusy(false);
+                      }
+                    }}>
+                      <div className="category-form__header">
+                        <h4>{editingGroupCategory ? 'Editar categoría' : 'Nueva categoría'}</h4>
+                        <button type="button" className="button button--ghost button--sm" onClick={resetGroupCategoryForm}>✕</button>
+                      </div>
+                      <label className="category-form__field">
+                        <span>Nombre</span>
+                        <input
+                          type="text"
+                          value={groupCategoryFormName}
+                          onChange={e => setGroupCategoryFormName(e.target.value)}
+                          placeholder="Nombre de la categoría"
+                          required
+                        />
+                      </label>
+                      <label className="category-form__field">
+                        <span>Icono</span>
+                        <div className="category-form__options">
+                          {CATEGORY_ICONS.map(icon => (
+                            <button
+                              key={icon}
+                              type="button"
+                              className={`category-form__option ${groupCategoryFormIcon === icon ? 'category-form__option--active' : ''}`}
+                              onClick={() => setGroupCategoryFormIcon(icon)}
+                            >
+                              {icon}
+                            </button>
+                          ))}
+                        </div>
+                      </label>
+                      <label className="category-form__field">
+                        <span>Color</span>
+                        <div className="category-form__options">
+                          {CATEGORY_COLORS.map(color => (
+                            <button
+                              key={color}
+                              type="button"
+                              className={`category-form__color ${groupCategoryFormColor === color ? 'category-form__option--active' : ''}`}
+                              style={{ background: color }}
+                              onClick={() => setGroupCategoryFormColor(color)}
+                            />
+                          ))}
+                        </div>
+                      </label>
+                      {groupCategoryError && <div className="category-form__error">{groupCategoryError}</div>}
+                      <button type="submit" className="button button--primary button--full" disabled={groupCategoryBusy}>
+                        {groupCategoryBusy ? 'Guardando...' : editingGroupCategory ? 'Guardar cambios' : 'Crear categoría'}
+                      </button>
+                    </form>
+                  )}
+
+                  {/* Lista Categorías del Grupo */}
+                  {(() => {
+                    const groupCategories = (categories || []).filter(c => c.groupId === selectedGroupId && c.type === groupCategoryTab);
+                    const globalCategories = (categories || []).filter(c => c.userId === null && c.groupId === null && c.type === groupCategoryTab);
+
+                    return (
+                      <>
+                        {groupCategories.length > 0 && (
+                          <div className="category-list">
+                            <div className="category-list__header">
+                              <h4>Categorías del grupo</h4>
+                            </div>
+                            {groupCategories.map(cat => (
+                              deleteGroupCategoryConfirm === cat.id ? (
+                                <div key={cat.id} className="category-item category-item--confirm-delete">
+                                  <div className="category-item__info">
+                                    <span className="category-item__icon">{cat.icon || '📁'}</span>
+                                    <span className="category-item__name">{cat.name}</span>
+                                  </div>
+                                  <div className="category-item__actions">
+                                    <button type="button" className="button button--ghost button--sm" onClick={() => setDeleteGroupCategoryConfirm(null)}>Cancelar</button>
+                                    <button type="button" className="button button--danger button--sm" onClick={async () => {
+                                      if (!selectedGroupId) return;
+                                      setGroupCategoryBusy(true);
+                                      setGroupCategoryError(null);
+                                      try {
+                                        await onDeleteGroupCategory(selectedGroupId, cat.id);
+                                        setDeleteGroupCategoryConfirm(null);
+                                      } catch (err: any) {
+                                        setGroupCategoryError(err.message || 'Error eliminando categoría');
+                                      } finally {
+                                        setGroupCategoryBusy(false);
+                                      }
+                                    }} disabled={groupCategoryBusy}>
+                                      {groupCategoryBusy ? '...' : 'Eliminar'}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div key={cat.id} className="category-item">
+                                  <div className="category-item__info">
+                                    <span className="category-item__icon" style={{ background: cat.color || '#64748B' }}>{cat.icon || '📁'}</span>
+                                    <span className="category-item__name">{cat.name}</span>
+                                  </div>
+                                  <div className="category-item__actions">
+                                    <button type="button" className="button button--ghost button--sm" onClick={() => {
+                                      setEditingGroupCategory(cat);
+                                      setGroupCategoryFormName(cat.name);
+                                      setGroupCategoryFormColor(cat.color || CATEGORY_COLORS[0]);
+                                      setGroupCategoryFormIcon(cat.icon || CATEGORY_ICONS[0]);
+                                      setShowCreateGroupCategory(false);
+                                      setGroupCategoryError(null);
+                                    }}>✏️</button>
+                                    <button type="button" className="button button--ghost button--sm" onClick={() => setDeleteGroupCategoryConfirm(cat.id)}>🗑️</button>
+                                  </div>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Lista Categorías Globales (solo lectura) */}
+                        {globalCategories.length > 0 && (
+                          <div className="category-list category-list--global">
+                            <div className="category-list__header">
+                              <h4>Por defecto</h4>
+                            </div>
+                            {globalCategories.map(cat => (
+                              <div key={cat.id} className="category-item category-item--global">
+                                <div className="category-item__info">
+                                  <span className="category-item__icon" style={{ background: cat.color || '#64748B' }}>{cat.icon || '📁'}</span>
+                                  <span className="category-item__name">{cat.name}</span>
+                                </div>
+                                <div className="category-item__badge">
+                                  <span>por defecto</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {groupCategories.length === 0 && globalCategories.length === 0 && !showCreateGroupCategory && !editingGroupCategory && (
+                          <div className="empty-state">
+                            <p>No hay categorías de {groupCategoryTab === 'income' ? 'ingresos' : 'gastos'} aún.</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </SectionCard>
             </div>
           ) : null}

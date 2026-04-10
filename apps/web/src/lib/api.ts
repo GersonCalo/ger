@@ -113,6 +113,28 @@ export const api = {
     const data = await parseJson<{ category: Category }>(response);
     return data.category;
   },
+  async updateCategory(
+    token: string,
+    categoryId: string,
+    input: { name?: string; color?: string; icon?: string }
+  ) {
+    const response = await fetch(`${API_BASE}/categories/${categoryId}`, {
+      method: 'PATCH',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ category: Category }>(response);
+    return data.category;
+  },
+  async deleteCategory(token: string, categoryId: string) {
+    const response = await fetch(`${API_BASE}/categories/${categoryId}`, {
+      method: 'DELETE',
+      headers: createHeaders(token),
+    });
+
+    return parseJson<{ message: string }>(response);
+  },
   async getGroupCategories(token: string, groupId: string) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/categories`, {
       headers: createHeaders(token),
@@ -134,6 +156,29 @@ export const api = {
 
     const data = await parseJson<{ category: Category }>(response);
     return data.category;
+  },
+  async updateGroupCategory(
+    token: string,
+    groupId: string,
+    categoryId: string,
+    input: { name?: string; color?: string; icon?: string }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/categories/${categoryId}`, {
+      method: 'PATCH',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ category: Category }>(response);
+    return data.category;
+  },
+  async deleteGroupCategory(token: string, groupId: string, categoryId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/categories/${categoryId}`, {
+      method: 'DELETE',
+      headers: createHeaders(token),
+    });
+
+    return parseJson<{ message: string }>(response);
   },
   async balance(token: string) {
     const response = await fetch(`${API_BASE}/balance`, {

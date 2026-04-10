@@ -107,6 +107,8 @@ function App() {
           onSelectGroup={financeApp.setSelectedGroupId}
           onUpdateExpense={financeApp.updateGroupExpense}
           onCreateGroupCategory={financeApp.createGroupCategory}
+          onUpdateGroupCategory={financeApp.updateGroupCategory}
+          onDeleteGroupCategory={financeApp.deleteGroupCategory}
           selectedGroupData={financeApp.selectedGroupData}
           selectedGroupId={financeApp.selectedGroupId}
           selectedGroupJoinCode={financeApp.selectedGroupJoinCode}
@@ -116,7 +118,16 @@ function App() {
       ) : null}
 
       {financeApp.activeTab === 'profile' ? (
-        <ProfileScreen health={financeApp.health} onLogout={financeApp.logout} user={financeApp.user!} />
+        <ProfileScreen
+          health={financeApp.health}
+          onLogout={financeApp.logout}
+          user={financeApp.user!}
+          categories={financeApp.categories}
+          categoriesBusy={financeApp.categoriesBusy}
+          onCreateCategory={financeApp.createCategory}
+          onUpdateCategory={financeApp.updateCategory}
+          onDeleteCategory={financeApp.deleteCategory}
+        />
       ) : null}
     </AppShell>
   );
