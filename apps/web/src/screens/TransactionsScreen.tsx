@@ -3,12 +3,13 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { AuthUser, Transaction } from '@/types';
+import type { AuthUser, Transaction, Category } from '@/types';
 
 type TransactionsScreenProps = {
   busy: boolean;
   error: string | null;
-  onCreateTransaction: (input: { type: 'income' | 'expense'; amount: number; category?: string; note?: string }) => Promise<void>;
+  onCreateTransaction: (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => Promise<void>;
+  onCreateCategory: (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
   onRefresh: () => Promise<void>;
   summary: {
     balance: number;
@@ -17,23 +18,32 @@ type TransactionsScreenProps = {
   };
   transactions: Transaction[];
   user: AuthUser;
+  categories: Category[];
 };
 
 export const TransactionsScreen = ({
   busy,
   error,
   onCreateTransaction,
+  onCreateCategory,
   onRefresh,
   summary,
   transactions,
   user,
+  categories,
 }: TransactionsScreenProps) => {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [justAdded, setJustAdded] = useState(false);
+  
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
   const successTimerRef = useRef<number | null>(null);
 
   const filteredTransactions = useMemo(() => {
@@ -89,8 +99,9 @@ export const TransactionsScreen = ({
             await onCreateTransaction({
               type,
               amount: Number(amount),
-              category: category || undefined,
+              categoryId: categoryId || undefined,
               note: note || undefined,
+              occurredAt: new Date().toISOString(),
             });
 
             if (successTimerRef.current) {
@@ -100,7 +111,7 @@ export const TransactionsScreen = ({
             setJustAdded(true);
             successTimerRef.current = window.setTimeout(() => setJustAdded(false), 1400);
             setAmount('');
-            setCategory('');
+            setCategoryId('');
             setNote('');
           }}
         >
@@ -120,14 +131,80 @@ export const TransactionsScreen = ({
 
             <div className="section-split">
               <label className="field">
-                <span className="field__label">Categoría</span>
-                <input
-                  className="field__input"
-                  type="text"
-                  placeholder="Comida, nómina, transporte..."
-                  value={category}
-                  onChange={event => setCategory(event.target.value)}
-                />
+                <span className="field__label">
+                  Categoría
+                  {!showAddCategory && (
+                    <button
+                      type="button"
+                      className="button button--ghost"
+                      style={{ fontSize: '0.8em', padding: '0 4px', height: 'auto', minHeight: '0' }}
+                      onClick={() => setShowAddCategory(true)}
+                    >
+                      + Nueva
+                    </button>
+                  )}
+                </span>
+                
+                {showAddCategory ? (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      className="field__input"
+                      type="text"
+                      placeholder="Ej. 🍕 Comida"
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                      style={{ flex: 1 }}
+                      disabled={creatingCategory}
+                    />
+                    <button
+                      type="button"
+                      className="button button--primary button--small"
+                      disabled={creatingCategory || !newCategoryName.trim()}
+                      onClick={async () => {
+                        setCreatingCategory(true);
+                        try {
+                          const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
+                          const icon = iconMatch ? iconMatch[0] : '';
+                          const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
+                          
+                          const cat = await onCreateCategory({ name, type, icon });
+                          setCategoryId(cat.id);
+                          setShowAddCategory(false);
+                          setNewCategoryName('');
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : 'Error al crear');
+                        } finally {
+                          setCreatingCategory(false);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--ghost button--small"
+                      onClick={() => setShowAddCategory(false)}
+                      disabled={creatingCategory}
+                    >
+                      X
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    className="field__input"
+                    value={categoryId}
+                    onChange={event => setCategoryId(event.target.value)}
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories
+                      .filter(c => c.type === type && c.groupId === null)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.icon ? `${c.icon} ` : ''}{c.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
               </label>
 
               <label className="field">
@@ -193,7 +270,14 @@ export const TransactionsScreen = ({
                 <article key={transaction.id} className="list-row list-row--stacked">
                   <div className="list-row__content">
                     <div className="list-row__title">
-                      {transaction.category || (transaction.type === 'income' ? 'Ingreso' : 'Gasto')}
+                      {transaction.category ? (
+                        <span className="category-tag">
+                          {transaction.category.icon ? `${transaction.category.icon} ` : ''}
+                          {transaction.category.name}
+                        </span>
+                      ) : (
+                        transaction.type === 'income' ? 'Ingreso' : 'Gasto'
+                      )}
                     </div>
                     <div className="list-row__meta">
                       {formatDate(transaction.occurredAt)} · {sourceLabel}

@@ -85,6 +85,7 @@ const expenseSchema = z
     payerMemberId: z.string().uuid(),
     amount: positiveAmountSchema,
     description: z.string().trim().optional(),
+    categoryId: z.string().uuid().optional().nullable(),
     occurredAt: z.string().datetime().optional(),
     splitMethod: z.enum(['equal', 'manual']),
     splits: z.array(manualSplitSchema).optional(),
@@ -357,8 +358,19 @@ groupsRouter.get('/groups', requireAuth, async (_req, res) => {
         select: {
           id: true,
           payerMemberId: true,
+          createdByMemberId: true,
           amount: true,
           description: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
           occurredAt: true,
           splitMethod: true,
           splits: {
@@ -454,8 +466,19 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
         select: {
           id: true,
           payerMemberId: true,
+          createdByMemberId: true,
           amount: true,
           description: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
           occurredAt: true,
           splitMethod: true,
           splits: {
@@ -511,8 +534,19 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
         select: {
           id: true,
           payerMemberId: true,
+          createdByMemberId: true,
           amount: true,
           description: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
           occurredAt: true,
           splitMethod: true,
           splits: {
@@ -568,8 +602,19 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
         select: {
           id: true,
           payerMemberId: true,
+          createdByMemberId: true,
           amount: true,
           description: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
           occurredAt: true,
           splitMethod: true,
           splits: {
@@ -806,8 +851,19 @@ groupsRouter.get('/groups/:id/expenses', requireAuth, async (req, res) => {
     select: {
       id: true,
       payerMemberId: true,
+      createdByMemberId: true,
       amount: true,
       description: true,
+      categoryId: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          color: true,
+          icon: true,
+        },
+      },
       occurredAt: true,
       splitMethod: true,
       splits: {
@@ -826,10 +882,15 @@ groupsRouter.get('/groups/:id/expenses', requireAuth, async (req, res) => {
 
 groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
-  const access = await assertAdminGroup(req.params.id, userId);
+  const access = await assertAccessibleGroup(req.params.id, userId);
 
   if (access.error) {
     return res.status(access.error.status).json(access.error.body);
+  }
+
+  const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
+  if (!requesterMember) {
+    return res.status(403).json({ message: 'No autorizado para añadir gastos en este grupo' });
   }
 
   const parsed = expenseSchema.safeParse(req.body);
@@ -857,13 +918,31 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     return res.status(400).json({ message: splitResult.error });
   }
 
+  if (parsed.data.categoryId) {
+    const category = await prisma.category.findFirst({
+      where: {
+        id: parsed.data.categoryId,
+        OR: [
+          { userId: null, groupId: null },
+          { groupId: access.group.id },
+        ],
+      },
+    });
+
+    if (!category) {
+      return res.status(400).json({ message: 'Categoría no encontrada o no pertenece al grupo' });
+    }
+  }
+
   const expense = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const created = await tx.groupExpense.create({
       data: {
         groupId: access.group.id,
+        createdByMemberId: requesterMember.id,
         payerMemberId: parsed.data.payerMemberId,
         amount,
         description: parsed.data.description?.trim() || null,
+        categoryId: parsed.data.categoryId || null,
         occurredAt,
         splitMethod: parsed.data.splitMethod,
         splits: {
@@ -873,8 +952,19 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
       select: {
         id: true,
         payerMemberId: true,
+        createdByMemberId: true,
         amount: true,
         description: true,
+        categoryId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            color: true,
+            icon: true,
+          },
+        },
         occurredAt: true,
         splitMethod: true,
         splits: {
@@ -913,7 +1003,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
       id: req.params.eid,
       groupId: access.group.id,
     },
-    select: { id: true, payerMemberId: true },
+    select: { id: true, payerMemberId: true, createdByMemberId: true },
   });
 
   if (!expense) {
@@ -924,7 +1014,8 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
   const canEditExpense =
     access.group.ownerUserId === userId ||
     requesterMember?.role === 'admin' ||
-    requesterMember?.id === expense.payerMemberId;
+    requesterMember?.id === expense.createdByMemberId ||
+    (!expense.createdByMemberId && requesterMember?.id === expense.payerMemberId);
 
   if (!canEditExpense) {
     return res.status(403).json({ message: 'No autorizado para editar este gasto' });
@@ -950,6 +1041,22 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
     return res.status(400).json({ message: splitResult.error });
   }
 
+  if (parsed.data.categoryId) {
+    const category = await prisma.category.findFirst({
+      where: {
+        id: parsed.data.categoryId,
+        OR: [
+          { userId: null, groupId: null },
+          { groupId: access.group.id },
+        ],
+      },
+    });
+
+    if (!category) {
+      return res.status(400).json({ message: 'Categoría no encontrada o no pertenece al grupo' });
+    }
+  }
+
   const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.groupSplit.deleteMany({
       where: { expenseId: expense.id },
@@ -961,6 +1068,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
         payerMemberId: parsed.data.payerMemberId,
         amount,
         description: parsed.data.description?.trim() || null,
+        categoryId: parsed.data.categoryId || null,
         occurredAt,
         splitMethod: parsed.data.splitMethod,
         splits: {
@@ -972,6 +1080,16 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
         payerMemberId: true,
         amount: true,
         description: true,
+        categoryId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            color: true,
+            icon: true,
+          },
+        },
         occurredAt: true,
         splitMethod: true,
         splits: {
@@ -1062,8 +1180,19 @@ groupsRouter.get('/groups/:id/balances', requireAuth, async (req, res) => {
         select: {
           id: true,
           payerMemberId: true,
+          createdByMemberId: true,
           amount: true,
           description: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
           occurredAt: true,
           splitMethod: true,
           splits: {

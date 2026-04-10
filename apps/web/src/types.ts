@@ -8,11 +8,21 @@ export type AuthUser = {
   createdAt?: string;
 };
 
+export type Category = {
+  id: string;
+  name: string;
+  type: 'income' | 'expense';
+  color: string;
+  icon: string;
+  userId: string | null;
+  groupId: string | null;
+};
+
 export type Transaction = {
   id: string;
   type: 'income' | 'expense';
   amount: string;
-  category: string | null;
+  category: Category | null;
   note: string | null;
   occurredAt: string;
   sourceType: 'manual' | 'group_expense' | 'group_settlement_paid' | 'group_settlement_received';
@@ -73,6 +83,8 @@ export type GroupExpense = {
   description: string | null;
   amount: number;
   payerMemberId: string;
+  category: Category | null;
+  categoryId: string | null;
   splitMethod: 'equal' | 'manual' | 'weights';
   occurredAt: string;
   splits: GroupExpenseSplit[];

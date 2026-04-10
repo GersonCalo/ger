@@ -73,7 +73,16 @@ export const DashboardScreen = ({
               return (
                 <article key={transaction.id} className="list-row">
                   <div>
-                    <div className="list-row__title">{transaction.category || (transaction.type === 'income' ? 'Ingreso' : 'Gasto')}</div>
+                    <div className="list-row__title">
+                      {transaction.category ? (
+                        <span className="category-tag">
+                          {transaction.category.icon ? `${transaction.category.icon} ` : ''}
+                          {transaction.category.name}
+                        </span>
+                      ) : (
+                        transaction.type === 'income' ? 'Ingreso' : 'Gasto'
+                      )}
+                    </div>
                     <div className="list-row__meta">{formatDate(transaction.occurredAt)}</div>
                   </div>
                   <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>

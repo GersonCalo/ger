@@ -28,7 +28,16 @@ transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
       id: true,
       type: true,
       amount: true,
-      category: true,
+      categoryId: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          color: true,
+          icon: true,
+        },
+      },
       occurredAt: true,
       note: true,
       sourceType: true,
@@ -44,23 +53,17 @@ transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   });
 
   return res.json({
-    transactions: transactions.map((transaction: {
-      id: string;
-      type: string;
-      amount: { toString(): string };
-      category: string | null;
-      occurredAt: Date;
-      note: string | null;
-      sourceType: string;
-      sourceRefId: string | null;
-      locked: boolean;
-      groupId: string | null;
-      group: { name: string } | null;
-    }) => ({
+    transactions: transactions.map((transaction: any) => ({
       id: transaction.id,
       type: transaction.type,
       amount: transaction.amount,
-      category: transaction.category,
+      category: transaction.category ? {
+        id: transaction.category.id,
+        name: transaction.category.name,
+        type: transaction.category.type,
+        color: transaction.category.color || '',
+        icon: transaction.category.icon || '',
+      } : null,
       occurredAt: transaction.occurredAt,
       note: transaction.note,
       sourceType: transaction.sourceType,
@@ -78,7 +81,7 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
   const bodySchema = z.object({
     type: z.enum(['income', 'expense']),
     amount: z.union([z.number().positive(), z.string().min(1)]),
-    category: z.string().optional(),
+    categoryId: z.string().uuid().optional().nullable(),
     note: z.string().optional(),
     occurredAt: z.string().datetime().optional(),
   });
@@ -98,12 +101,28 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
     return res.status(400).json({ message: 'Fecha inválida' });
   }
 
+  if (parsed.data.categoryId) {
+    const category = await prisma.category.findFirst({
+      where: {
+        id: parsed.data.categoryId,
+        OR: [
+          { userId: null, groupId: null },
+          { userId: userId, groupId: null },
+        ],
+      },
+    });
+
+    if (!category) {
+      return res.status(400).json({ message: 'Categoría no encontrada o no tienes acceso a ella' });
+    }
+  }
+
   const transaction = await prisma.personalTransaction.create({
     data: {
       userId,
       type: parsed.data.type,
       amount: amountValue,
-      category: parsed.data.category?.trim() || null,
+      categoryId: parsed.data.categoryId || null,
       note: parsed.data.note?.trim() || null,
       occurredAt,
     },
@@ -111,7 +130,16 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
       id: true,
       type: true,
       amount: true,
-      category: true,
+      categoryId: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          color: true,
+          icon: true,
+        },
+      },
       occurredAt: true,
       note: true,
       sourceType: true,
@@ -131,7 +159,13 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
       id: transaction.id,
       type: transaction.type,
       amount: transaction.amount,
-      category: transaction.category,
+      category: transaction.category ? {
+        id: transaction.category.id,
+        name: transaction.category.name,
+        type: transaction.category.type,
+        color: transaction.category.color || '',
+        icon: transaction.category.icon || '',
+      } : null,
       occurredAt: transaction.occurredAt,
       note: transaction.note,
       sourceType: transaction.sourceType,

@@ -4,21 +4,24 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { formatDate, formatMoney } from '@/lib/format';
 import { summarizeTransactions } from '@/lib/groups';
-import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary } from '@/types';
+import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary, Category } from '@/types';
 
 type GroupsScreenProps = {
   error: string | null;
   groups: GroupSummary[];
   groupsBusy: boolean;
   notice: string;
+  categories?: Category[];
   onAddMember: (input: { groupId: string; displayName: string }) => Promise<void>;
   onAddExpense: (input: {
     groupId: string;
     description: string;
     amount: number;
     payerMemberId: string;
-    splitMethod: 'equal' | 'manual';
+    categoryId?: string;
+    splitMethod: 'equal' | 'manual' | 'weights';
     splits?: GroupExpenseSplitInput[];
+    occurredAt: string;
   }) => Promise<void>;
   onCreateGroup: (input: { name: string; guestMembers: string[] }) => Promise<void>;
   onCreateSettlement: (input: { groupId: string; fromMemberId: string; toMemberId: string; amount: number }) => Promise<void>;
@@ -30,9 +33,12 @@ type GroupsScreenProps = {
     description: string;
     amount: number;
     payerMemberId: string;
-    splitMethod: 'equal' | 'manual';
+    categoryId?: string;
+    splitMethod: 'equal' | 'manual' | 'weights';
     splits?: GroupExpenseSplitInput[];
+    occurredAt: string;
   }) => Promise<void>;
+  onCreateGroupCategory: (groupId: string, input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
   selectedGroupData: GroupBalancesPayload | null;
   selectedGroupId: string | null;
   selectedGroupJoinCode: string | null;
@@ -72,10 +78,12 @@ export const GroupsScreen = ({
   onJoinByCode,
   onSelectGroup,
   onUpdateExpense,
+  onCreateGroupCategory,
   selectedGroupData,
   selectedGroupId,
   selectedGroupJoinCode,
   user,
+  categories = [],
 }: GroupsScreenProps) => {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
@@ -86,10 +94,14 @@ export const GroupsScreen = ({
   const [memberName, setMemberName] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseCategoryId, setExpenseCategoryId] = useState('');
   const [payerMemberId, setPayerMemberId] = useState('');
   const [splitMethod, setSplitMethod] = useState<'equal' | 'manual'>('equal');
   const [manualShares, setManualShares] = useState<Record<string, string>>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementFromId, setSettlementFromId] = useState('');
   const [settlementToId, setSettlementToId] = useState('');
@@ -172,6 +184,7 @@ export const GroupsScreen = ({
     setEditingExpenseId(null);
     setExpenseDescription('');
     setExpenseAmount('');
+    setExpenseCategoryId('');
     setSplitMethod('equal');
     setManualShares(buildManualShareState(selectedGroupData.members));
     setPayerMemberId(selectedGroupData.members[0]?.id || '');
@@ -188,6 +201,7 @@ export const GroupsScreen = ({
     setEditingExpenseId(null);
     setExpenseDescription('');
     setExpenseAmount('');
+    setExpenseCategoryId('');
     setSplitMethod('equal');
     setManualShares(buildManualShareState(selectedGroupData?.members || selectedGroup?.members || []));
     setPayerMemberId(selectedGroupData?.members[0]?.id || selectedGroup?.members[0]?.id || '');
@@ -218,6 +232,7 @@ export const GroupsScreen = ({
     setEditingExpenseId(expense.id);
     setExpenseDescription(expense.description || '');
     setExpenseAmount(String(expense.amount));
+    setExpenseCategoryId(expense.categoryId || '');
     setPayerMemberId(expense.payerMemberId);
     setSplitMethod(expense.splitMethod === 'equal' ? 'equal' : 'manual');
     setManualShares(buildManualShareState(selectedGroupData.members, expense));
@@ -458,8 +473,10 @@ export const GroupsScreen = ({
                       description: expenseDescription.trim(),
                       amount,
                       payerMemberId: defaultPayer,
+                      categoryId: expenseCategoryId || undefined,
                       splitMethod,
                       splits: manualSplits,
+                      occurredAt: new Date().toISOString(),
                     } as const;
 
                     if (editingExpenseId) {
@@ -500,20 +517,99 @@ export const GroupsScreen = ({
                     </label>
                   </div>
 
-                  <label className="field">
-                    <span className="field__label">Pagó</span>
-                    <select
-                      className="field__input"
-                      value={payerMemberId || selectedGroup.members[0]?.id || ''}
-                      onChange={event => setPayerMemberId(event.target.value)}
-                    >
-                      {selectedGroup.members.map(member => (
-                        <option key={member.id} value={member.id}>
-                          {member.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="section-split">
+                    <label className="field">
+                      <span className="field__label">
+                        Categoría
+                        {!showAddCategory && (
+                          <button
+                            type="button"
+                            className="button button--ghost"
+                            style={{ fontSize: '0.8em', padding: '0 4px', height: 'auto', minHeight: '0' }}
+                            onClick={() => setShowAddCategory(true)}
+                          >
+                            + Nueva
+                          </button>
+                        )}
+                      </span>
+                      
+                      {showAddCategory ? (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            className="field__input"
+                            type="text"
+                            placeholder="Ej. 🍕 Comida"
+                            value={newCategoryName}
+                            onChange={e => setNewCategoryName(e.target.value)}
+                            style={{ flex: 1 }}
+                            disabled={creatingCategory}
+                          />
+                          <button
+                            type="button"
+                            className="button button--primary button--small"
+                            disabled={creatingCategory || !newCategoryName.trim()}
+                            onClick={async () => {
+                              setCreatingCategory(true);
+                              try {
+                                const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
+                                const icon = iconMatch ? iconMatch[0] : '';
+                                const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
+                                
+                                const cat = await onCreateGroupCategory(selectedGroup.id, { name, type: 'expense', icon });
+                                setExpenseCategoryId(cat.id);
+                                setShowAddCategory(false);
+                                setNewCategoryName('');
+                              } catch (err) {
+                                alert(err instanceof Error ? err.message : 'Error al crear');
+                              } finally {
+                                setCreatingCategory(false);
+                              }
+                            }}
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            type="button"
+                            className="button button--ghost button--small"
+                            onClick={() => setShowAddCategory(false)}
+                            disabled={creatingCategory}
+                          >
+                            X
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          className="field__input"
+                          value={expenseCategoryId}
+                          onChange={event => setExpenseCategoryId(event.target.value)}
+                        >
+                          <option value="">Sin categoría</option>
+                          {categories
+                            .filter(c => c.type === 'expense' && (c.groupId === null || c.groupId === selectedGroup.id))
+                            .map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.icon ? `${c.icon} ` : ''}{c.name}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">Pagó</span>
+                      <select
+                        className="field__input"
+                        value={payerMemberId || selectedGroup.members[0]?.id || ''}
+                        onChange={event => setPayerMemberId(event.target.value)}
+                      >
+                        {selectedGroup.members.map(member => (
+                          <option key={member.id} value={member.id}>
+                            {member.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
 
                   <div className="segmented-control">
                     <button
@@ -595,7 +691,16 @@ export const GroupsScreen = ({
                       return (
                         <article key={expense.id} className="list-row list-row--stacked">
                           <div className="list-row__content">
-                            <div className="list-row__title">{expense.description || 'Gasto compartido'}</div>
+                            <div className="list-row__title">
+                              {expense.category ? (
+                                <span className="category-tag">
+                                  {expense.category.icon ? `${expense.category.icon} ` : ''}
+                                  {expense.category.name}
+                                </span>
+                              ) : null}
+                              {expense.category ? ' · ' : ''}
+                              {expense.description || 'Gasto compartido'}
+                            </div>
                             <div className="list-row__meta">
                               {formatDate(expense.occurredAt)} · Pagó {payer?.displayName || 'Miembro'} · {splitLabel}
                             </div>

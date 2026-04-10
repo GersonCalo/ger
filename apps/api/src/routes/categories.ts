@@ -1,0 +1,220 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../db/prisma.js';
+import { requireAuth } from '../middlewares/requireAuth.js';
+
+export const categoriesRouter = Router();
+
+const createCategorySchema = z.object({
+  name: z.string().trim().min(1),
+  type: z.enum(['income', 'expense']),
+  color: z.string().trim().optional(),
+  icon: z.string().trim().optional(),
+});
+
+// GET /categories - Global and Personal categories
+categoriesRouter.get('/categories', requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+
+  const globalCategories = await prisma.category.findMany({
+    where: {
+      userId: null,
+      groupId: null,
+    },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+  const personalCategories = await prisma.category.findMany({
+    where: {
+      userId: userId,
+      groupId: null,
+    },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.json({
+      categories: [...globalCategories, ...personalCategories].map((cat: any) => ({
+        ...cat,
+        color: cat.color || '',
+        icon: cat.icon || '',
+      })),
+    });
+});
+
+// POST /categories - Create a personal category
+categoriesRouter.post('/categories', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+
+  const parsed = createCategorySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+  }
+
+  try {
+    const category = await prisma.category.create({
+      data: {
+        name: parsed.data.name,
+        type: parsed.data.type,
+        color: parsed.data.color || null,
+        icon: parsed.data.icon || null,
+        userId: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.status(201).json({
+      category: {
+        ...category,
+        color: category.color || '',
+        icon: category.icon || '',
+      },
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return res.status(409).json({ message: 'Ya existe una categoría personal con ese nombre' });
+    }
+    return res.status(500).json({ message: 'Error creando categoría' });
+  }
+});
+
+// GET /groups/:id/categories - Global and Group categories
+categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const groupId = req.params.id;
+
+  // Validate group access
+  const group = await prisma.group.findFirst({
+    where: {
+      id: groupId,
+      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+    },
+  });
+
+  if (!group) {
+    return res.status(404).json({ message: 'Grupo no encontrado' });
+  }
+
+  const globalCategories = await prisma.category.findMany({
+    where: {
+      userId: null,
+      groupId: null,
+    },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+  const groupCategories = await prisma.category.findMany({
+    where: {
+      groupId: groupId,
+    },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.json({
+      categories: [...globalCategories, ...groupCategories].map((cat: any) => ({
+        ...cat,
+        color: cat.color || '',
+        icon: cat.icon || '',
+      })),
+    });
+});
+
+// POST /groups/:id/categories - Create a group category
+categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const groupId = req.params.id;
+
+  // Validate group access
+  const group = await prisma.group.findFirst({
+    where: {
+      id: groupId,
+      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+    },
+  });
+
+  if (!group) {
+    return res.status(404).json({ message: 'Grupo no encontrado' });
+  }
+
+  const parsed = createCategorySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+  }
+
+  try {
+    const category = await prisma.category.create({
+      data: {
+        name: parsed.data.name,
+        type: parsed.data.type,
+        color: parsed.data.color || null,
+        icon: parsed.data.icon || null,
+        groupId: groupId,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        icon: true,
+        userId: true,
+        groupId: true,
+      },
+    });
+
+    return res.status(201).json({
+      category: {
+        ...category,
+        color: category.color || '',
+        icon: category.icon || '',
+      },
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return res.status(409).json({ message: 'Ya existe una categoría en el grupo con ese nombre' });
+    }
+    return res.status(500).json({ message: 'Error creando categoría de grupo' });
+  }
+});

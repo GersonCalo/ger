@@ -22,8 +22,17 @@ export const serializeGroupMember = (member: {
 export const serializeGroupExpense = (expense: {
   id: string;
   payerMemberId: string;
+  createdByMemberId?: string | null;
   amount: { toString(): string } | number | string;
   description: string | null;
+  categoryId?: string | null;
+  category?: {
+    id: string;
+    name: string;
+    type: string;
+    color: string | null;
+    icon: string | null;
+  } | null;
   occurredAt: Date;
   splitMethod: string;
   splits?: Array<{
@@ -35,11 +44,20 @@ export const serializeGroupExpense = (expense: {
 }) => ({
   id: expense.id,
   payerMemberId: expense.payerMemberId,
+  createdByMemberId: expense.createdByMemberId || expense.payerMemberId,
   amount: toNumber(expense.amount) || 0,
   description: expense.description,
+  categoryId: expense.categoryId || null,
+  category: expense.category ? {
+    id: expense.category.id,
+    name: expense.category.name,
+    type: expense.category.type,
+    color: expense.category.color || '',
+    icon: expense.category.icon || '',
+  } : null,
   occurredAt: expense.occurredAt.toISOString(),
   splitMethod: expense.splitMethod,
-  splits: (expense.splits || []).map(split => ({
+  splits: (expense.splits || []).map((split: any) => ({
     id: split.id,
     memberId: split.memberId,
     shareAmount: toNumber(split.shareAmount),

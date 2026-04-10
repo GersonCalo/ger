@@ -2,6 +2,7 @@ import type {
   ApiHealth,
   AuthResponse,
   AuthUser,
+  Category,
   GlobalBalancePayload,
   GroupBalancesPayload,
   GroupExpense,
@@ -10,7 +11,6 @@ import type {
   GroupMember,
   GroupSettlement,
   GroupSummary,
-  JoinGroupByCodePayload,
   Transaction,
 } from '@/types';
 
@@ -81,7 +81,7 @@ export const api = {
   },
   async createTransaction(
     token: string,
-    input: { type: 'income' | 'expense'; amount: number; category?: string; note?: string; occurredAt: string }
+    input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }
   ) {
     const response = await fetch(`${API_BASE}/transactions`, {
       method: 'POST',
@@ -91,6 +91,49 @@ export const api = {
 
     const data = await parseJson<{ transaction: Transaction }>(response);
     return data.transaction;
+  },
+  async getCategories(token: string) {
+    const response = await fetch(`${API_BASE}/categories`, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ categories: Category[] }>(response);
+    return data.categories;
+  },
+  async createCategory(
+    token: string,
+    input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }
+  ) {
+    const response = await fetch(`${API_BASE}/categories`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ category: Category }>(response);
+    return data.category;
+  },
+  async getGroupCategories(token: string, groupId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/categories`, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ categories: Category[] }>(response);
+    return data.categories;
+  },
+  async createGroupCategory(
+    token: string,
+    groupId: string,
+    input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }
+  ) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/categories`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ category: Category }>(response);
+    return data.category;
   },
   async balance(token: string) {
     const response = await fetch(`${API_BASE}/balance`, {
@@ -131,7 +174,7 @@ export const api = {
       body: JSON.stringify({ code }),
     });
 
-    return parseJson<JoinGroupByCodePayload>(response);
+    return parseJson<{ group: GroupSummary }>(response);
   },
   async groupJoinCode(token: string, groupId: string) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/join-code`, {
@@ -151,12 +194,13 @@ export const api = {
     token: string,
     groupId: string,
     input: {
-      payerMemberId: string;
+      description: string;
       amount: number;
-      description?: string;
-      occurredAt: string;
-      splitMethod: 'equal' | 'manual';
+      payerMemberId: string;
+      categoryId?: string;
+      splitMethod: 'equal' | 'manual' | 'weights';
       splits?: GroupExpenseSplitInput[];
+      occurredAt: string;
     }
   ) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/expenses`, {
@@ -173,12 +217,13 @@ export const api = {
     groupId: string,
     expenseId: string,
     input: {
-      payerMemberId: string;
+      description: string;
       amount: number;
-      description?: string;
-      occurredAt: string;
-      splitMethod: 'equal' | 'manual';
+      payerMemberId: string;
+      categoryId?: string;
+      splitMethod: 'equal' | 'manual' | 'weights';
       splits?: GroupExpenseSplitInput[];
+      occurredAt: string;
     }
   ) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/expenses/${expenseId}`, {

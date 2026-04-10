@@ -5,6 +5,7 @@ import type {
   ApiHealth,
   AppTab,
   AuthUser,
+  Category,
   GlobalBalancePayload,
   GroupBalancesPayload,
   GroupExpenseSplitInput,
@@ -56,6 +57,9 @@ export const useFinanceApp = () => {
   const [transactionError, setTransactionError] = useState<string | null>(null);
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const autoRefreshInFlightRef = useRef(false);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesBusy, setCategoriesBusy] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setActiveTabState(getInitialTab());
@@ -116,7 +120,7 @@ export const useFinanceApp = () => {
       const nextGroups = await api.groups(token);
       setGroups(nextGroups);
       setSelectedGroupId(current =>
-        current && nextGroups.some(group => group.id === current) ? current : (nextGroups[0]?.id ?? null)
+        current && nextGroups.some((group: GroupSummary) => group.id === current) ? current : (nextGroups[0]?.id ?? null)
       );
       return nextGroups;
     } catch (error) {
@@ -168,32 +172,58 @@ export const useFinanceApp = () => {
     [groups, token, user?.id]
   );
 
+  const refreshCategories = useCallback(async (options?: { silent?: boolean }) => {
+    if (!token) return [] as Category[];
+    if (!options?.silent) {
+      setCategoriesBusy(true);
+    }
+    try {
+      const nextCategories = await api.getCategories(token);
+      // @ts-ignore
+      setCategories(nextCategories.categories || nextCategories || []);
+      // @ts-ignore
+      return nextCategories.categories || nextCategories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [] as Category[];
+    } finally {
+      if (!options?.silent) {
+        setCategoriesBusy(false);
+      }
+    }
+  }, [token]);
+
   const loadSession = useCallback(
     async (sessionToken: string) => {
       setBooting(true);
       setDataBusy(true);
       setGroupsBusy(true);
+      setCategoriesBusy(true);
 
       try {
-        const [nextUser, nextTransactions, nextGroups, nextBalance] = await Promise.all([
+        const [nextUser, nextTransactions, nextGroups, nextBalance, nextCategories] = await Promise.all([
           api.me(sessionToken),
           api.transactions(sessionToken),
           api.groups(sessionToken),
           api.balance(sessionToken),
+          api.getCategories(sessionToken).then((res: any) => res.categories || res).catch(() => []),
         ]);
 
-        setUser(nextUser);
+        // @ts-ignore
+        setUser(nextUser.user || nextUser);
         setTransactions(nextTransactions);
         setGroups(nextGroups);
         setBalanceSummary(nextBalance);
+        setCategories(nextCategories);
 
         const firstGroupId = nextGroups[0]?.id ?? null;
         setSelectedGroupId(firstGroupId);
 
         if (firstGroupId) {
           try {
-            const firstGroup = nextGroups.find(group => group.id === firstGroupId);
-            const currentMembership = firstGroup?.members.find(member => member.userId === nextUser.id);
+            const firstGroup = nextGroups.find((group: GroupSummary) => group.id === firstGroupId);
+            // @ts-ignore
+            const currentMembership = firstGroup?.members.find((member: { userId: string | null; role: string }) => member.userId === (nextUser.user?.id || nextUser.id));
             const shouldLoadJoinCode = currentMembership?.role === 'admin';
             const [payload, joinCodePayload] = await Promise.all([
               api.groupBalances(sessionToken, firstGroupId),
@@ -250,7 +280,7 @@ export const useFinanceApp = () => {
       if (activeTab === 'groups') {
         const nextGroups = await refreshGroups({ silent: true });
         const resolvedGroupId =
-          selectedGroupId && nextGroups.some(group => group.id === selectedGroupId)
+          selectedGroupId && nextGroups.some((group: GroupSummary) => group.id === selectedGroupId)
             ? selectedGroupId
             : (nextGroups[0]?.id ?? null);
 
@@ -366,47 +396,73 @@ export const useFinanceApp = () => {
     [onAuthSuccess]
   );
 
-  const refreshTransactions = useCallback(async () => {
+  const refreshTransactions = useCallback(async (options?: { silent?: boolean }) => {
     if (!token) return;
-
-    setDataBusy(true);
-    setTransactionError(null);
-
+    if (!options?.silent) setDataBusy(true);
     try {
-      const [nextTransactions, nextBalance] = await Promise.all([api.transactions(token), api.balance(token)]);
-      setTransactions(nextTransactions);
-      setBalanceSummary(nextBalance);
-    } catch (error) {
-      setTransactionError(error instanceof Error ? error.message : 'No se pudieron cargar los movimientos');
+      const list = await api.transactions(token);
+      setTransactions(list || []);
+      setTransactionError(null);
+    } catch (error: any) {
+      setTransactionError(error.message || 'Error cargando historial');
     } finally {
-      setDataBusy(false);
+      if (!options?.silent) setDataBusy(false);
     }
   }, [token]);
 
   const createTransaction = useCallback(
-    async (input: { type: 'income' | 'expense'; amount: number; category?: string; note?: string }) => {
+    async (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => {
       if (!token) return;
-
       setDataBusy(true);
       setTransactionError(null);
-
       try {
-        const transaction = await api.createTransaction(token, {
-          ...input,
-          occurredAt: new Date().toISOString(),
-        });
-
-        setTransactions(current => [transaction, ...current]);
-        const nextBalance = await api.balance(token);
-        setBalanceSummary(nextBalance);
-        setActiveTab('transactions');
-      } catch (error) {
-        setTransactionError(error instanceof Error ? error.message : 'No se pudo guardar el movimiento');
+        const result = await api.createTransaction(token, { ...input, amount: input.amount.toString() } as any);
+        // @ts-ignore
+        setTransactions(prev => [result.transaction || result, ...prev]);
+        await refreshBalance();
+      } catch (error: any) {
+        setTransactionError(error.message || 'Error guardando transacción');
+        throw error;
       } finally {
         setDataBusy(false);
       }
     },
-    [setActiveTab, token]
+    [token, refreshBalance]
+  );
+
+  const createCategory = useCallback(
+    async (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => {
+      if (!token) throw new Error('No auth');
+      try {
+        const res = await api.createCategory(token, input);
+        // @ts-ignore
+        const cat = res.category || res;
+        setCategories(prev => [...prev, cat].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)));
+        return cat;
+      } catch (error: any) {
+        throw new Error(error.message || 'Error creando categoría');
+      }
+    },
+    [token]
+  );
+
+  const createGroupCategory = useCallback(
+    async (groupId: string, input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => {
+      if (!token) throw new Error('No auth');
+      try {
+        const res = await api.createGroupCategory(token, groupId, input);
+        // @ts-ignore
+        const cat = res.category || res;
+        setCategories(prev => {
+          const newCats = [...prev, cat].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+          return newCats.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+        });
+        return cat;
+      } catch (error: any) {
+        throw new Error(error.message || 'Error creando categoría de grupo');
+      }
+    },
+    [token]
   );
 
   const createGroup = useCallback(
@@ -417,12 +473,14 @@ export const useFinanceApp = () => {
       setGroupsError(null);
 
       try {
-        const createdGroup = await api.createGroup(token, {
+        const res = await api.createGroup(token, {
           name: input.name,
           members: input.guestMembers
             .filter(Boolean)
             .map(displayName => ({ displayName, weight: 1, role: 'member' as const })),
         });
+        // @ts-ignore
+        const createdGroup = res.group || res;
 
         await refreshGroups();
         setSelectedGroupId(createdGroup.id);
@@ -439,82 +497,76 @@ export const useFinanceApp = () => {
   );
 
   const addGroupExpense = useCallback(
-    async (input: {
-      groupId: string;
-      description: string;
-      amount: number;
-      payerMemberId: string;
-      splitMethod: 'equal' | 'manual';
-      splits?: GroupExpenseSplitInput[];
-    }) => {
+    async (
+      input: {
+        groupId: string;
+        description: string;
+        amount: number;
+        payerMemberId: string;
+        categoryId?: string;
+        splitMethod: 'equal' | 'manual' | 'weights';
+        splits?: GroupExpenseSplitInput[];
+        occurredAt: string;
+      }
+    ) => {
       if (!token) return;
 
       setGroupsBusy(true);
       setGroupsError(null);
 
       try {
-        await api.createGroupExpense(token, input.groupId, {
-          payerMemberId: input.payerMemberId,
-          amount: input.amount,
-          description: input.description,
-          occurredAt: new Date().toISOString(),
-          splitMethod: input.splitMethod,
-          splits: input.splits,
-        });
-
+        const { groupId, ...rest } = input;
+        await api.createGroupExpense(token, groupId, rest);
         await Promise.all([
-          refreshGroups(),
-          refreshSelectedGroup(input.groupId),
-          refreshBalance(),
-          api.transactions(token).then(setTransactions),
+          refreshSelectedGroup(groupId, { silent: true }),
+          refreshBalance({ silent: true }),
+          refreshTransactions({ silent: true }),
         ]);
       } catch (error) {
-        setGroupsError(error instanceof Error ? error.message : 'No se pudo registrar el gasto');
+        setGroupsError(error instanceof Error ? error.message : 'No se pudo crear el gasto');
+        throw error;
       } finally {
         setGroupsBusy(false);
       }
     },
-    [refreshBalance, refreshGroups, refreshSelectedGroup, token]
+    [token, refreshSelectedGroup, refreshBalance, refreshTransactions]
   );
 
   const updateGroupExpense = useCallback(
-    async (input: {
-      expenseId: string;
-      groupId: string;
-      description: string;
-      amount: number;
-      payerMemberId: string;
-      splitMethod: 'equal' | 'manual';
-      splits?: GroupExpenseSplitInput[];
-    }) => {
+    async (
+      input: {
+        expenseId: string;
+        groupId: string;
+        description: string;
+        amount: number;
+        payerMemberId: string;
+        categoryId?: string;
+        splitMethod: 'equal' | 'manual' | 'weights';
+        splits?: GroupExpenseSplitInput[];
+        occurredAt: string;
+      }
+    ) => {
       if (!token) return;
 
       setGroupsBusy(true);
       setGroupsError(null);
 
       try {
-        await api.updateGroupExpense(token, input.groupId, input.expenseId, {
-          payerMemberId: input.payerMemberId,
-          amount: input.amount,
-          description: input.description,
-          occurredAt: new Date().toISOString(),
-          splitMethod: input.splitMethod,
-          splits: input.splits,
-        });
-
+        const { groupId, expenseId, ...rest } = input;
+        await api.updateGroupExpense(token, groupId, expenseId, rest);
         await Promise.all([
-          refreshGroups(),
-          refreshSelectedGroup(input.groupId),
-          refreshBalance(),
-          api.transactions(token).then(setTransactions),
+          refreshSelectedGroup(groupId, { silent: true }),
+          refreshBalance({ silent: true }),
+          refreshTransactions({ silent: true }),
         ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo actualizar el gasto');
+        throw error;
       } finally {
         setGroupsBusy(false);
       }
     },
-    [refreshBalance, refreshGroups, refreshSelectedGroup, token]
+    [token, refreshSelectedGroup, refreshBalance, refreshTransactions]
   );
 
   const addGroupMember = useCallback(
@@ -548,10 +600,12 @@ export const useFinanceApp = () => {
       setGroupsError(null);
 
       try {
-        const result = await api.joinGroupByCode(token, code.trim().toUpperCase());
+        const res = await api.joinGroupByCode(token, code.trim().toUpperCase());
+        // @ts-ignore
+        const joinedGroup = res.group || res;
         await Promise.all([refreshGroups(), refreshBalance()]);
-        setSelectedGroupId(result.group.id);
-        await refreshSelectedGroup(result.group.id);
+        setSelectedGroupId(joinedGroup.id);
+        await refreshSelectedGroup(joinedGroup.id);
         setActiveTab('groups');
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo unir al grupo');
@@ -631,8 +685,12 @@ export const useFinanceApp = () => {
     authBusy,
     authError,
     booting,
+    categories,
+    categoriesBusy,
     confirmSettlement,
+    createCategory,
     createGroup,
+    createGroupCategory,
     createSettlement,
     createTransaction,
     dashboardSummary,
@@ -647,6 +705,7 @@ export const useFinanceApp = () => {
     login,
     logout,
     refreshBalance,
+    refreshCategories,
     refreshGroups,
     refreshSelectedGroup,
     refreshTransactions,

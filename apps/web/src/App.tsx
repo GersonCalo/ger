@@ -84,10 +84,12 @@ function App() {
           busy={financeApp.dataBusy}
           error={financeApp.transactionError}
           onCreateTransaction={financeApp.createTransaction}
+          onCreateCategory={financeApp.createCategory}
           onRefresh={financeApp.refreshTransactions}
           summary={financeApp.dashboardSummary}
           transactions={financeApp.transactions}
           user={financeApp.user!}
+          categories={financeApp.categories}
         />
       ) : null}
 
@@ -104,10 +106,12 @@ function App() {
           onJoinByCode={financeApp.joinGroupByCode}
           onSelectGroup={financeApp.setSelectedGroupId}
           onUpdateExpense={financeApp.updateGroupExpense}
+          onCreateGroupCategory={financeApp.createGroupCategory}
           selectedGroupData={financeApp.selectedGroupData}
           selectedGroupId={financeApp.selectedGroupId}
           selectedGroupJoinCode={financeApp.selectedGroupJoinCode}
           user={financeApp.user!}
+          categories={financeApp.categories}
         />
       ) : null}
 

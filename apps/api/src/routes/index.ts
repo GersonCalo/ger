@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { authRouter } from './auth.js';
 import { groupsRouter } from './groups.js';
 import { transactionsRouter } from './transactions.js';
+import { categoriesRouter } from './categories.js';
 
 export const router = Router();
 
@@ -17,3 +18,4 @@ router.get('/config', (_req, res) => {
 router.use(authRouter);
 router.use(transactionsRouter);
 router.use(groupsRouter);
+router.use(categoriesRouter);

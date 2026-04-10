@@ -1,0 +1,18 @@
+export const GLOBAL_CATEGORIES = [
+  { name: 'Salario', type: 'income', color: '#16A34A', icon: '💼' },
+  { name: 'Freelance', type: 'income', color: '#0EA5E9', icon: '🧾' },
+  { name: 'Regalos', type: 'income', color: '#F59E0B', icon: '🎁' },
+  { name: 'Inversiones', type: 'income', color: '#8B5CF6', icon: '📈' },
+  { name: 'Ventas', type: 'income', color: '#14B8A6', icon: '🛍️' },
+  { name: 'Ocio', type: 'expense', color: '#EC4899', icon: '🎮' },
+  { name: 'Supermercado', type: 'expense', color: '#22C55E', icon: '🛒' },
+  { name: 'Transporte', type: 'expense', color: '#3B82F6', icon: '🚌' },
+  { name: 'Restaurantes', type: 'expense', color: '#F97316', icon: '🍽️' },
+  { name: 'Ropa', type: 'expense', color: '#A855F7', icon: '👕' },
+  { name: 'Vivienda', type: 'expense', color: '#64748B', icon: '🏠' },
+  { name: 'Salud', type: 'expense', color: '#EF4444', icon: '🏥' },
+  { name: 'Educación', type: 'expense', color: '#6366F1', icon: '📚' },
+  { name: 'Suscripciones', type: 'expense', color: '#06B6D4', icon: '📺' },
+  { name: 'Viajes', type: 'expense', color: '#10B981', icon: '✈️' },
+  { name: 'Hogar', type: 'expense', color: '#84CC16', icon: '🛠️' },
+] as const;

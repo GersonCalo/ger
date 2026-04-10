@@ -19,6 +19,26 @@ model User {
   transactions PersonalTransaction[]
   groups       Group[]  @relation("UserGroups")
   memberships  GroupMember[] @relation("UserMember")
+  categories   Category[]
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // 'income' | 'expense'
+  color       String?
+  icon        String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  groupId     String?
+  group       Group?   @relation(fields: [groupId], references: [id])
+  
+  personalTransactions PersonalTransaction[]
+  groupExpenses        GroupExpense[]
+
+  @@unique([name, userId, groupId])
+  @@index([userId])
+  @@index([groupId])
 }
 
 model PersonalTransaction {
@@ -32,13 +52,15 @@ model PersonalTransaction {
   sourceRefId String?
   locked      Boolean  @default(false)
   amount      Decimal  @db.Decimal(12,2)
-  category    String?
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
   occurredAt  DateTime
   note        String?
 
   @@index([userId, occurredAt])
   @@index([groupId])
   @@index([sourceType, sourceRefId])
+  @@index([categoryId])
   @@unique([userId, sourceType, sourceRefId])
 }
 
@@ -55,6 +77,7 @@ model Group {
   expenses              GroupExpense[]
   settlements           GroupSettlement[]
   personalTransactions  PersonalTransaction[]
+  categories            Category[]
 
   @@index([ownerUserId, createdAt])
 }
@@ -70,6 +93,7 @@ model GroupMember {
   role       String   @default("member") // 'member' | 'admin'
 
   expensesAsPayer GroupExpense[] @relation("PayerRelation")
+  expensesCreated GroupExpense[] @relation("ExpenseCreator")
   splits          GroupSplit[]
   settlementsFrom GroupSettlement[] @relation("FromMember")
   settlementsTo   GroupSettlement[] @relation("ToMember")
@@ -85,8 +109,12 @@ model GroupExpense {
   group         Group    @relation(fields: [groupId], references: [id])
   payerMemberId String
   payer         GroupMember @relation("PayerRelation", fields: [payerMemberId], references: [id])
+  createdByMemberId String?
+  createdByMember   GroupMember? @relation("ExpenseCreator", fields: [createdByMemberId], references: [id])
   amount        Decimal  @db.Decimal(12,2)
   description   String?
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
   occurredAt    DateTime
   splitMethod   String   // 'equal' | 'weights'
 
@@ -94,6 +122,8 @@ model GroupExpense {
 
   @@index([groupId, occurredAt])
   @@index([payerMemberId])
+  @@index([createdByMemberId])
+  @@index([categoryId])
 }
 
 model GroupSplit {
