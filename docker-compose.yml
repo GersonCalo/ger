@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +37,7 @@ services:
       DATABASE_URL: postgres://app:app@db:5432/app
       JWT_SECRET: "changeme-dev"
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -49,9 +49,9 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     environment:
-      VITE_API_URL: "http://localhost:8080"
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     depends_on:
       - api
 
