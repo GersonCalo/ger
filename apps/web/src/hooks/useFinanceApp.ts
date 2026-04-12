@@ -656,6 +656,25 @@ export const useFinanceApp = () => {
     [refreshGroups, refreshSelectedGroup, token]
   );
 
+  const deleteGroupMember = useCallback(
+    async (groupId: string, memberId: string) => {
+      if (!token) return;
+
+      setGroupsBusy(true);
+      setGroupsError(null);
+
+      try {
+        await api.deleteGroupMember(token, groupId, memberId);
+        await Promise.all([refreshGroups(), refreshSelectedGroup(groupId)]);
+      } catch (error) {
+        setGroupsError(error instanceof Error ? error.message : 'No se pudo eliminar el miembro');
+      } finally {
+        setGroupsBusy(false);
+      }
+    },
+    [refreshGroups, refreshSelectedGroup, token]
+  );
+
   const joinGroupByCode = useCallback(
     async (code: string) => {
       if (!token) return;
@@ -761,6 +780,7 @@ export const useFinanceApp = () => {
     dataBusy,
     deleteCategory,
     deleteGroupCategory,
+    deleteGroupMember,
     groups,
     groupsBusy,
     groupsError,

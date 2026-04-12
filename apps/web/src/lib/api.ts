@@ -294,6 +294,28 @@ export const api = {
     const data = await parseJson<{ member: GroupMember }>(response);
     return data.member;
   },
+  async deleteGroupMember(token: string, groupId: string, memberId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/members/${memberId}`, {
+      method: 'DELETE',
+      headers: createHeaders(token),
+    });
+
+    if (response.status === 204) {
+      return;
+    }
+
+    const data = await parseJson<{ message: string }>(response);
+    throw new Error(data.message || 'Error eliminando miembro');
+  },
+  async rejoinGroupMember(token: string, groupId: string, memberId: string) {
+    const response = await fetch(`${API_BASE}/groups/${groupId}/members/${memberId}/rejoin`, {
+      method: 'POST',
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ member: GroupMember }>(response);
+    return data.member;
+  },
   async createSettlement(
     token: string,
     groupId: string,

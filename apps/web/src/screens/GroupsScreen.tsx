@@ -16,6 +16,7 @@ type GroupsScreenProps = {
   notice: string;
   categories?: Category[];
   onAddMember: (input: { groupId: string; displayName: string }) => Promise<void>;
+  onDeleteMember: (groupId: string, memberId: string) => Promise<void>;
   onAddExpense: (input: {
     groupId: string;
     description: string;
@@ -78,6 +79,7 @@ export const GroupsScreen = ({
   notice,
   onAddExpense,
   onAddMember,
+  onDeleteMember,
   onCreateGroup,
   onCreateSettlement,
   onJoinByCode,
@@ -112,6 +114,8 @@ export const GroupsScreen = ({
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementFromId, setSettlementFromId] = useState('');
   const [settlementToId, setSettlementToId] = useState('');
+  const [deleteMemberConfirm, setDeleteMemberConfirm] = useState<string | null>(null);
+  const [deleteMemberBusy, setDeleteMemberBusy] = useState(false);
   
   // Group category management state
   const [groupCategoryTab, setGroupCategoryTab] = useState<'income' | 'expense'>('expense');
@@ -902,13 +906,73 @@ export const GroupsScreen = ({
             <div className="tab-panel">
               <SectionCard title="Miembros">
                 <div className="list-stack">
-                  <div className="member-pill-row">
-                    {selectedGroup.members.map(member => (
-                      <div key={member.id} className="member-pill">
-                        {member.displayName}
+                  {deleteMemberConfirm ? (
+                    <div className="form-stack">
+                      <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0 }}>
+                        ¿Estás seguro de que quieres eliminar a{' '}
+                        <strong>{selectedGroup.members.find(m => m.id === deleteMemberConfirm)?.displayName}</strong> del grupo?
+                        Perderá acceso pero el histórico de gastos se mantendrá.
+                      </p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          className="button button--danger button--small"
+                          disabled={deleteMemberBusy}
+                          onClick={async () => {
+                            setDeleteMemberBusy(true);
+                            try {
+                              await onDeleteMember(selectedGroup.id, deleteMemberConfirm);
+                            } catch {
+                              // Error already handled by the hook
+                            } finally {
+                              setDeleteMemberBusy(false);
+                            }
+                            setDeleteMemberConfirm(null);
+                          }}
+                        >
+                          {deleteMemberBusy ? 'Eliminando...' : 'Confirmar eliminación'}
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--ghost button--small"
+                          onClick={() => setDeleteMemberConfirm(null)}
+                        >
+                          Cancelar
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="member-pill-row">
+                      {selectedGroup.members.map(member => {
+                        const isAdmin = currentUserMember?.role === 'admin';
+                        const isSelf = member.userId === user.id;
+                        return (
+                          <div key={member.id} className="member-pill" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span>{member.displayName}</span>
+                            {isAdmin && !isSelf ? (
+                              <button
+                                type="button"
+                                className="member-pill__delete"
+                                title="Eliminar del grupo"
+                                onClick={() => setDeleteMemberConfirm(member.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: 'var(--color-danger, #ef4444)',
+                                  fontSize: 14,
+                                  padding: '0 2px',
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   <form
                     className="form-stack"

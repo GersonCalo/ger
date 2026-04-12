@@ -10,6 +10,7 @@ export const serializeGroupMember = (member: {
   displayName: string;
   weight: { toString(): string } | number | string | null;
   role: string;
+  leftAt?: Date | null;
 }) => ({
   id: member.id,
   userId: member.userId,
@@ -17,6 +18,7 @@ export const serializeGroupMember = (member: {
   weight: toNumber(member.weight),
   role: member.role,
   kind: member.userId ? 'user' : 'guest',
+  leftAt: member.leftAt ? member.leftAt.toISOString() : null,
 });
 
 export const serializeGroupExpense = (expense: {

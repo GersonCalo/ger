@@ -112,7 +112,7 @@ categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => 
   const group = await prisma.group.findFirst({
     where: {
       id: groupId,
-      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
     },
   });
 
@@ -276,7 +276,7 @@ categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) =>
   const group = await prisma.group.findFirst({
     where: {
       id: groupId,
-      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
     },
   });
 
@@ -346,7 +346,7 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
-        OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+        OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
       },
     });
 
@@ -421,7 +421,7 @@ categoriesRouter.delete('/groups/:groupId/categories/:id', requireAuth, async (r
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
-        OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+        OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
       },
     });
 

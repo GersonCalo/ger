@@ -83,14 +83,15 @@ model Group {
 }
 
 model GroupMember {
-  id         String  @id @default(uuid())
+  id         String   @id @default(uuid())
   groupId    String
-  group      Group   @relation(fields: [groupId], references: [id])
-  userId     String? // null si participante falso
-  user       User?   @relation("UserMember", fields: [userId], references: [id])
+  group      Group    @relation(fields: [groupId], references: [id])
+  userId     String?  // null si participante falso
+  user       User?    @relation("UserMember", fields: [userId], references: [id])
   displayName String
   weight     Decimal? @db.Decimal(8,4)
   role       String   @default("member") // 'member' | 'admin'
+  leftAt     DateTime? // null = activo, set = miembro dado de baja
 
   expensesAsPayer GroupExpense[] @relation("PayerRelation")
   expensesCreated GroupExpense[] @relation("ExpenseCreator")
@@ -100,7 +101,7 @@ model GroupMember {
 
   @@index([groupId])
   @@index([userId])
-  @@unique([groupId, userId])
+  @@index([groupId, leftAt])
 }
 
 model GroupExpense {

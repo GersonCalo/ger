@@ -145,19 +145,21 @@ const getAccessibleGroup = async (groupId: string, userId: string) => {
   return prisma.group.findFirst({
     where: {
       id: groupId,
-      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
     },
     select: {
       id: true,
       ownerUserId: true,
       currency: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -176,6 +178,7 @@ const getAdminGroup = async (groupId: string, userId: string) => {
             some: {
               userId,
               role: 'admin',
+              leftAt: null,
             },
           },
         },
@@ -186,12 +189,14 @@ const getAdminGroup = async (groupId: string, userId: string) => {
       ownerUserId: true,
       currency: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -336,7 +341,7 @@ groupsRouter.get('/groups', requireAuth, async (_req, res) => {
 
   const groups = await prisma.group.findMany({
     where: {
-      OR: [{ ownerUserId: userId }, { members: { some: { userId } } }],
+      OR: [{ ownerUserId: userId }, { members: { some: { userId, leftAt: null } } }],
     },
     orderBy: { createdAt: 'desc' },
     select: {
@@ -345,12 +350,14 @@ groupsRouter.get('/groups', requireAuth, async (_req, res) => {
       currency: true,
       createdAt: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -459,6 +466,7 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -521,12 +529,14 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
       id: true,
       name: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -589,12 +599,14 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
       currency: true,
       createdAt: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -795,46 +807,71 @@ groupsRouter.delete('/groups/:id/members/:mid', requireAuth, async (req, res) =>
     return res.status(404).json({ message: 'Miembro no encontrado' });
   }
 
+  if (member.leftAt) {
+    return res.status(400).json({ message: 'Este miembro ya fue dado de baja' });
+  }
+
   if (member.userId === userId) {
     return res.status(400).json({ message: 'No puedes eliminarte a ti mismo del grupo' });
   }
 
   if (member.role === 'admin') {
-    const adminCount = access.group.members.filter((item: { role: string }) => item.role === 'admin').length;
+    const adminCount = access.group.members.filter((item: { role: string; leftAt?: Date | null }) => item.role === 'admin' && !item.leftAt).length;
     if (adminCount <= 1) {
       return res.status(400).json({ message: 'No puedes eliminar al último admin del grupo' });
     }
   }
 
-  const references = await prisma.groupMember.findUnique({
+  await prisma.groupMember.update({
     where: { id: member.id },
-    select: {
-      _count: {
-        select: {
-          expensesAsPayer: true,
-          splits: true,
-          settlementsFrom: true,
-          settlementsTo: true,
-        },
-      },
-    },
-  });
-
-  const referenceCount =
-    (references?._count.expensesAsPayer || 0) +
-    (references?._count.splits || 0) +
-    (references?._count.settlementsFrom || 0) +
-    (references?._count.settlementsTo || 0);
-
-  if (referenceCount > 0) {
-    return res.status(400).json({ message: 'No puedes eliminar un miembro con gastos, splits o liquidaciones asociadas' });
-  }
-
-  await prisma.groupMember.delete({
-    where: { id: member.id },
+    data: { leftAt: new Date() },
   });
 
   return res.status(204).send();
+});
+
+groupsRouter.post('/groups/:id/members/:mid/rejoin', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const access = await assertAdminGroup(req.params.id, userId);
+
+  if (access.error) {
+    return res.status(access.error.status).json(access.error.body);
+  }
+
+  const member = access.group.members.find((item: { id: string }) => item.id === req.params.mid);
+  if (member) {
+    return res.status(400).json({ message: 'Este miembro ya está activo en el grupo' });
+  }
+
+  // Look for the member in all members (including soft-deleted)
+  const allMembers = await prisma.groupMember.findMany({
+    where: { groupId: access.group.id, id: req.params.mid },
+    select: { id: true, leftAt: true, role: true },
+  });
+
+  const targetMember = allMembers[0];
+  if (!targetMember) {
+    return res.status(404).json({ message: 'Miembro no encontrado' });
+  }
+
+  if (!targetMember.leftAt) {
+    return res.status(400).json({ message: 'Este miembro ya está activo' });
+  }
+
+  const reactivated = await prisma.groupMember.update({
+    where: { id: targetMember.id },
+    data: { leftAt: null },
+    select: {
+      id: true,
+      userId: true,
+      displayName: true,
+      weight: true,
+      role: true,
+      leftAt: true,
+    },
+  });
+
+  return res.json({ member: serializeGroupMember(reactivated) });
 });
 
 groupsRouter.get('/groups/:id/expenses', requireAuth, async (req, res) => {
@@ -1166,12 +1203,14 @@ groupsRouter.get('/groups/:id/balances', requireAuth, async (req, res) => {
       currency: true,
       createdAt: true,
       members: {
+        where: { leftAt: null },
         select: {
           id: true,
           userId: true,
           displayName: true,
           weight: true,
           role: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },
@@ -1339,6 +1378,7 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
           id: true,
           displayName: true,
           weight: true,
+          leftAt: true,
         },
         orderBy: { id: 'asc' },
       },

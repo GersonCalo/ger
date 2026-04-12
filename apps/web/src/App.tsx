@@ -100,6 +100,7 @@ function App() {
           groupsBusy={financeApp.groupsBusy}
           notice={financeApp.groupsNotice}
           onAddMember={financeApp.addGroupMember}
+          onDeleteMember={financeApp.deleteGroupMember}
           onAddExpense={financeApp.addGroupExpense}
           onCreateGroup={financeApp.createGroup}
           onCreateSettlement={financeApp.createSettlement}

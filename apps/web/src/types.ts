@@ -64,6 +64,7 @@ export type GroupMember = {
   kind: 'user' | 'guest';
   weight: number | null;
   role: 'member' | 'admin';
+  leftAt: string | null;
 };
 
 export type GroupExpenseSplit = {
