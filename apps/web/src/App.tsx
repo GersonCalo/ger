@@ -128,6 +128,10 @@ function App() {
           onCreateCategory={financeApp.createCategory}
           onUpdateCategory={financeApp.updateCategory}
           onDeleteCategory={financeApp.deleteCategory}
+          isPushEnabled={financeApp.isPushEnabled}
+          isPushSupported={financeApp.isPushSupported}
+          onSubscribeToPush={financeApp.subscribeToPush}
+          onUnsubscribeFromPush={financeApp.unsubscribeFromPush}
         />
       ) : null}
     </AppShell>

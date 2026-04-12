@@ -36,6 +36,9 @@ services:
       PORT: 8080
       DATABASE_URL: postgres://app:app@db:5432/app
       JWT_SECRET: "changeme-dev"
+      VAPID_PUBLIC_KEY: "BMf_bCClzkLDHBoro-tERX2bqoQawjkHFFzhPtY4sOpQQnn_wa7zWGAzxdcKllhICtTm-kEGR1LwgPYJ5pdnqY8"
+      VAPID_PRIVATE_KEY: "kX96ZYlcmEyvadbuGaUd4KQP4dIxia13QhhdtxmTyK0"
+      VAPID_MAILTO: "mailto:admin@example.com"
     ports:
       - "0.0.0.0:8080:8080"
     depends_on:

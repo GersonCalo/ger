@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { api } from '@/lib/api';
+import { storage } from '@/lib/storage';
 import type { ApiHealth, AuthUser, Category } from '@/types';
 
 type ProfileScreenProps = {
@@ -13,12 +14,16 @@ type ProfileScreenProps = {
   onCreateCategory: (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<Category>;
   onUpdateCategory: (id: string, input: { name?: string; color?: string; icon?: string }) => Promise<Category>;
   onDeleteCategory: (id: string) => Promise<void>;
+  isPushEnabled: boolean;
+  isPushSupported: boolean;
+  onSubscribeToPush: (token: string) => Promise<boolean>;
+  onUnsubscribeFromPush: (token: string) => Promise<boolean>;
 };
 
 const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', '#64748B', '#EF4444', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
 const CATEGORY_ICONS = ['💰', '💼', '🎁', '📈', '🛍️', '🎮', '🛒', '🚌', '🍽️', '👕', '🏠', '🏥', '📚', '📺', '✈️', '🔧', '💻', '🎓', '🚗', '🏦'];
 
-export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBusy, onCreateCategory, onUpdateCategory, onDeleteCategory }: ProfileScreenProps) => {
+export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBusy, onCreateCategory, onUpdateCategory, onDeleteCategory, isPushEnabled, isPushSupported, onSubscribeToPush, onUnsubscribeFromPush }: ProfileScreenProps) => {
   const [categoryTab, setCategoryTab] = useState<'income' | 'expense'>('expense');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -115,6 +120,38 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
           <StatCard label="Entorno" value={health?.env || 'offline'} />
         </div>
       </SectionCard>
+
+      {isPushSupported && (
+        <SectionCard title="Notificaciones">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>Notificaciones push</div>
+              <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                {isPushEnabled
+                  ? 'Recibirás alertas de gastos, liquidaciones y cambios en tus grupos'
+                  : 'Las notificaciones están desactivadas'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className={`button ${isPushEnabled ? 'button--ghost' : 'button--primary'} button--small`}
+              onClick={async () => {
+                const token = storage.getToken();
+                if (!token) return;
+                if (isPushEnabled) {
+                  await onUnsubscribeFromPush(token);
+                } else {
+                  await onSubscribeToPush(token);
+                }
+                // Force re-render by toggling state (the hook uses localStorage)
+                window.location.reload();
+              }}
+            >
+              {isPushEnabled ? 'Desactivar' : 'Activar'}
+            </button>
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard title="Categorías">
         <div className="category-manager">

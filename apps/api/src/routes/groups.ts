@@ -12,6 +12,7 @@ import {
 } from '../lib/groupSerializers.js';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { sendPushToUser } from '../lib/push.js';
 
 export const groupsRouter = Router();
 
@@ -827,6 +828,19 @@ groupsRouter.delete('/groups/:id/members/:mid', requireAuth, async (req, res) =>
     data: { leftAt: new Date() },
   });
 
+  // Notify the removed member if they have a userId
+  if (member.userId) {
+    const groupInfo = await prisma.group.findUnique({
+      where: { id: access.group.id },
+      select: { name: true },
+    });
+    await sendPushToUser(member.userId, {
+      title: 'Eliminado de un grupo',
+      body: `Has sido eliminado del grupo ${groupInfo?.name || 'un grupo'}`,
+      data: { groupId: access.group.id, type: 'member_removed' },
+    }).catch(() => {});
+  }
+
   return res.status(204).send();
 });
 
@@ -1018,6 +1032,31 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     await syncGroupExpenseLedger(tx, created.id);
     return created;
   });
+
+  // Send push notifications to all group members except the creator
+  const creatorMemberId = requesterMember.id;
+  const allGroupMembers = await prisma.groupMember.findMany({
+    where: { groupId: access.group.id },
+    select: { id: true, userId: true, displayName: true },
+  });
+
+  const groupName = access.group.id; // We need group name — fetch it
+  const groupInfo = await prisma.group.findUnique({
+    where: { id: access.group.id },
+    select: { name: true },
+  });
+
+  const payerMember = allGroupMembers.find((m: { id: string }) => m.id === parsed.data.payerMemberId);
+  const payerName = payerMember?.displayName || 'Alguien';
+
+  for (const member of allGroupMembers) {
+    if (member.id === creatorMemberId || !member.userId) continue;
+    await sendPushToUser(member.userId, {
+      title: `Nuevo gasto en ${groupInfo?.name || 'un grupo'}`,
+      body: `${payerName} añadió un gasto de ${parsed.data.amount}€`,
+      data: { groupId: access.group.id, type: 'expense' },
+    }).catch(() => {});
+  }
 
   return res.status(201).json({ expense: serializeGroupExpense(expense) });
 });
@@ -1497,6 +1536,28 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     await syncGroupSettlementLedger(tx, created.id);
     return created;
   });
+
+  // Send push to the creditor (toMember) — the one who is being paid
+  const toMember = await prisma.groupMember.findUnique({
+    where: { id: parsed.data.toMemberId },
+    select: { userId: true, displayName: true },
+  });
+  const fromMember = await prisma.groupMember.findUnique({
+    where: { id: parsed.data.fromMemberId },
+    select: { displayName: true },
+  });
+  const groupInfo = await prisma.group.findUnique({
+    where: { id: access.group.id },
+    select: { name: true },
+  });
+
+  if (toMember?.userId) {
+    await sendPushToUser(toMember.userId, {
+      title: `Liquidación en ${groupInfo?.name || 'un grupo'}`,
+      body: `${fromMember?.displayName || 'Alguien'} te ha liquidado ${amount}€`,
+      data: { groupId: access.group.id, type: 'settlement' },
+    }).catch(() => {});
+  }
 
   return res.status(201).json({ settlement: serializeGroupSettlement(settlement) });
 });

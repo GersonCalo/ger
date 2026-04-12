@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { storage } from '@/lib/storage';
+import { subscribeToPush, unsubscribeFromPush, isPushEnabled, isPushSupported, hasAskedPermission, markAsAsked } from '@/lib/push';
 import type {
   ApiHealth,
   AppTab,
@@ -358,6 +359,12 @@ export const useFinanceApp = () => {
       setGroupsError(null);
       setActiveTab('home');
       setBalanceSummary(EMPTY_BALANCE_SUMMARY);
+
+      // Subscribe to push notifications (non-blocking)
+      if (isPushSupported() && isPushEnabled() && !hasAskedPermission()) {
+        markAsAsked();
+        subscribeToPush(response.token).catch(() => {});
+      }
     },
     [setActiveTab]
   );
@@ -787,6 +794,10 @@ export const useFinanceApp = () => {
     groupsNotice: GROUPS_NOTICE,
     health,
     isAuthenticated: Boolean(user && token),
+    isPushEnabled: isPushEnabled(),
+    isPushSupported: isPushSupported(),
+    subscribeToPush: (t: string) => subscribeToPush(t),
+    unsubscribeFromPush: (t: string) => unsubscribeFromPush(t),
     joinGroupByCode,
     login,
     logout,

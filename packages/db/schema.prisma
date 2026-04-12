@@ -20,6 +20,7 @@ model User {
   groups       Group[]  @relation("UserGroups")
   memberships  GroupMember[] @relation("UserMember")
   categories   Category[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Category {
@@ -155,4 +156,18 @@ model GroupSettlement {
   @@index([groupId, occurredAt])
   @@index([fromMemberId])
   @@index([toMemberId])
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  endpoint   String   // URL del servicio push
+  p256dh     String   // Clave pública del cliente
+  auth       String   // Secreto de autenticación
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, endpoint])
+  @@index([userId])
 }

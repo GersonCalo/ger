@@ -316,6 +316,27 @@ export const api = {
     const data = await parseJson<{ member: GroupMember }>(response);
     return data.member;
   },
+  async getVapidPublicKey(token: string) {
+    const response = await fetch(`${API_BASE}/push/vapid-public-key`, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ publicKey: string }>(response);
+    return data;
+  },
+  async subscribeToPush(
+    token: string,
+    subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+  ) {
+    const response = await fetch(`${API_BASE}/push/subscribe`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(subscription),
+    });
+
+    if (response.status === 204) return;
+    await parseJson(response);
+  },
   async createSettlement(
     token: string,
     groupId: string,
