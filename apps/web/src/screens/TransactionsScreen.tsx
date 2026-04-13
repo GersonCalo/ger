@@ -90,7 +90,7 @@ export const TransactionsScreen = ({
         </div>
 
         <form
-          className="form-stack"
+          className={`form-stack ${justAdded ? 'form-stack--success' : ''}`}
           onSubmit={async event => {
             event.preventDefault();
 
@@ -115,110 +115,104 @@ export const TransactionsScreen = ({
             setNote('');
           }}
         >
-          <div className={`entry-shell ${justAdded ? 'entry-shell--success' : ''}`}>
-            <label className="field">
-              <span className="field__label">Monto</span>
-              <input
-                className="field__input field__input--amount"
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={event => setAmount(event.target.value)}
-              />
-            </label>
+          <label className="field field--amount">
+            <span className="field__label">Monto</span>
+            <input
+              className="field__input field__input--amount"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              placeholder="0.00"
+              value={amount}
+              onChange={event => setAmount(event.target.value)}
+            />
+          </label>
 
-            <div className="section-split">
-              <label className="field">
-                <span className="field__label">
-                  Categoría
-                  {!showAddCategory && (
-                    <button
-                      type="button"
-                      className="button button--ghost"
-                      style={{ fontSize: '0.8em', padding: '0 4px', height: 'auto', minHeight: '0' }}
-                      onClick={() => setShowAddCategory(true)}
-                    >
-                      + Nueva
-                    </button>
-                  )}
-                </span>
-                
-                {showAddCategory ? (
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      className="field__input"
-                      type="text"
-                      placeholder="Ej. 🍕 Comida"
-                      value={newCategoryName}
-                      onChange={e => setNewCategoryName(e.target.value)}
-                      style={{ flex: 1 }}
-                      disabled={creatingCategory}
-                    />
-                    <button
-                      type="button"
-                      className="button button--primary button--small"
-                      disabled={creatingCategory || !newCategoryName.trim()}
-                      onClick={async () => {
-                        setCreatingCategory(true);
-                        try {
-                          const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
-                          const icon = iconMatch ? iconMatch[0] : '';
-                          const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
-                          
-                          const cat = await onCreateCategory({ name, type, icon });
-                          setCategoryId(cat.id);
-                          setShowAddCategory(false);
-                          setNewCategoryName('');
-                        } catch (err) {
-                          alert(err instanceof Error ? err.message : 'Error al crear');
-                        } finally {
-                          setCreatingCategory(false);
-                        }
-                      }}
-                    >
-                      Guardar
-                    </button>
-                    <button
-                      type="button"
-                      className="button button--ghost button--small"
-                      onClick={() => setShowAddCategory(false)}
-                      disabled={creatingCategory}
-                    >
-                      X
-                    </button>
-                  </div>
-                ) : (
-                  <select
-                    className="field__input"
-                    value={categoryId}
-                    onChange={event => setCategoryId(event.target.value)}
-                  >
-                    <option value="">Sin categoría</option>
-                    {categories
-                      .filter(c => c.type === type && c.groupId === null)
-                      .map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.icon ? `${c.icon} ` : ''}{c.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-              </label>
+          <label className="field">
+            <div className="field__header">
+              <span className="field__label">Categoría</span>
+              {!showAddCategory && (
+                <button
+                  type="button"
+                  className="field__action"
+                  onClick={() => setShowAddCategory(true)}
+                >
+                  + Nueva
+                </button>
+              )}
+            </div>
 
-              <label className="field">
-                <span className="field__label">Nota</span>
+            {showAddCategory ? (
+              <div className="field__inline-row">
                 <input
                   className="field__input"
                   type="text"
-                  placeholder="Opcional"
-                  value={note}
-                  onChange={event => setNote(event.target.value)}
+                  placeholder="Ej. 🍕 Comida"
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  disabled={creatingCategory}
                 />
-              </label>
-            </div>
-          </div>
+                <button
+                  type="button"
+                  className="button button--primary button--small"
+                  disabled={creatingCategory || !newCategoryName.trim()}
+                  onClick={async () => {
+                    setCreatingCategory(true);
+                    try {
+                      const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
+                      const icon = iconMatch ? iconMatch[0] : '';
+                      const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
+
+                      const cat = await onCreateCategory({ name, type, icon });
+                      setCategoryId(cat.id);
+                      setShowAddCategory(false);
+                      setNewCategoryName('');
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Error al crear');
+                    } finally {
+                      setCreatingCategory(false);
+                    }
+                  }}
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  className="button button--ghost button--small"
+                  onClick={() => setShowAddCategory(false)}
+                  disabled={creatingCategory}
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <select
+                className="field__input"
+                value={categoryId}
+                onChange={event => setCategoryId(event.target.value)}
+              >
+                <option value="">Sin categoría</option>
+                {categories
+                  .filter(c => c.type === type && c.groupId === null)
+                  .map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon ? `${c.icon} ` : ''}{c.name}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </label>
+
+          <label className="field">
+            <span className="field__label">Nota</span>
+            <input
+              className="field__input"
+              type="text"
+              placeholder="Opcional"
+              value={note}
+              onChange={event => setNote(event.target.value)}
+            />
+          </label>
 
           {error ? <div className="form-error">{error}</div> : null}
 

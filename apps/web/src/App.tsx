@@ -132,6 +132,8 @@ function App() {
           isPushSupported={financeApp.isPushSupported}
           onSubscribeToPush={financeApp.subscribeToPush}
           onUnsubscribeFromPush={financeApp.unsubscribeFromPush}
+          theme={financeApp.theme}
+          onSetTheme={financeApp.setTheme}
         />
       ) : null}
     </AppShell>

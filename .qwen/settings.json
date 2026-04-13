@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(research.contrary.com)",
+      "WebFetch(rive.app)",
+      "WebFetch(dribbble.com)",
+      "WebFetch(engineering.traderepublic.com)",
+      "WebFetch(brandfetch.com)",
+      "WebFetch(www.behance.net)",
+      "WebFetch(www.figma.com)",
+      "WebFetch(www.inscript.team)",
+      "WebFetch(brokerchooser.com)",
+      "WebFetch(www.finanztip.de)",
+      "WebFetch(fintechcompass.net)"
+    ]
+  },
+  "$version": 3
+}

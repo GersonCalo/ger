@@ -18,12 +18,14 @@ type ProfileScreenProps = {
   isPushSupported: boolean;
   onSubscribeToPush: (token: string) => Promise<boolean>;
   onUnsubscribeFromPush: (token: string) => Promise<boolean>;
+  theme: 'light' | 'dark' | 'system';
+  onSetTheme: (theme: 'light' | 'dark' | 'system') => void;
 };
 
 const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', '#64748B', '#EF4444', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
 const CATEGORY_ICONS = ['💰', '💼', '🎁', '📈', '🛍️', '🎮', '🛒', '🚌', '🍽️', '👕', '🏠', '🏥', '📚', '📺', '✈️', '🔧', '💻', '🎓', '🚗', '🏦'];
 
-export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBusy, onCreateCategory, onUpdateCategory, onDeleteCategory, isPushEnabled, isPushSupported, onSubscribeToPush, onUnsubscribeFromPush }: ProfileScreenProps) => {
+export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBusy, onCreateCategory, onUpdateCategory, onDeleteCategory, isPushEnabled, isPushSupported, onSubscribeToPush, onUnsubscribeFromPush, theme, onSetTheme }: ProfileScreenProps) => {
   const [categoryTab, setCategoryTab] = useState<'income' | 'expense'>('expense');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -33,6 +35,11 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
   const [formIcon, setFormIcon] = useState(CATEGORY_ICONS[0]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    onSetTheme('system');
+    onLogout();
+  };
 
   const personalCategories = categories.filter(c => c.userId !== null && c.groupId === null && c.type === categoryTab);
   const globalCategories = categories.filter(c => c.userId === null && c.groupId === null && c.type === categoryTab);
@@ -121,12 +128,35 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
         </div>
       </SectionCard>
 
+      <SectionCard title="Apariencia">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>Tema</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {theme === 'dark' ? 'Modo oscuro' : theme === 'light' ? 'Modo claro' : 'Seguir al sistema'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['light', 'dark', 'system'] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                className={`button button--small ${theme === t ? 'button--primary' : 'button--ghost'}`}
+                onClick={() => onSetTheme(t)}
+              >
+                {t === 'light' ? '☀' : t === 'dark' ? '☾' : '⚙'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
+
       {isPushSupported && (
         <SectionCard title="Notificaciones">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 15 }}>Notificaciones push</div>
-              <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
                 {isPushEnabled
                   ? 'Recibirás alertas de gastos, liquidaciones y cambios en tus grupos'
                   : 'Las notificaciones están desactivadas'}
@@ -330,7 +360,7 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
       </SectionCard>
 
       <SectionCard title="Sesión">
-        <button type="button" className="button button--ghost" onClick={onLogout}>
+        <button type="button" className="button button--ghost" onClick={handleLogout}>
           Cerrar sesión
         </button>
       </SectionCard>

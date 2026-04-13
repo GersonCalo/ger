@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { subscribeToPush, unsubscribeFromPush, isPushEnabled, isPushSupported, hasAskedPermission, markAsAsked } from '@/lib/push';
+import { applyTheme, getTheme, setTheme } from '@/lib/theme';
 import type {
   ApiHealth,
   AppTab,
@@ -72,6 +73,18 @@ export const useFinanceApp = () => {
     api.health().then(setHealth).catch(() => setHealth(null));
   }, []);
 
+  // Listen for system theme changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (getTheme() === 'system') {
+        applyTheme('system');
+      }
+    };
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
   const setActiveTab = useCallback((tab: AppTab) => {
     setActiveTabState(tab);
     setHash(tab);
@@ -92,6 +105,9 @@ export const useFinanceApp = () => {
     setGroupsError(null);
     setActiveTabState('home');
     setHash('home');
+
+    // Reset theme to system on logout
+    setTheme('system');
   }, []);
 
   const refreshBalance = useCallback(async (options?: { silent?: boolean }) => {
@@ -359,6 +375,10 @@ export const useFinanceApp = () => {
       setGroupsError(null);
       setActiveTab('home');
       setBalanceSummary(EMPTY_BALANCE_SUMMARY);
+
+      // Apply saved theme for this user
+      const savedTheme = getTheme();
+      applyTheme(savedTheme);
 
       // Subscribe to push notifications (non-blocking)
       if (isPushSupported() && isPushEnabled() && !hasAskedPermission()) {
@@ -798,6 +818,8 @@ export const useFinanceApp = () => {
     isPushSupported: isPushSupported(),
     subscribeToPush: (t: string) => subscribeToPush(t),
     unsubscribeFromPush: (t: string) => unsubscribeFromPush(t),
+    theme: getTheme(),
+    setTheme: (t: 'light' | 'dark' | 'system') => setTheme(t),
     joinGroupByCode,
     login,
     logout,
