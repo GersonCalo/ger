@@ -98,7 +98,6 @@ function App() {
           error={financeApp.groupsError}
           groups={financeApp.groups}
           groupsBusy={financeApp.groupsBusy}
-          notice={financeApp.groupsNotice}
           onAddMember={financeApp.addGroupMember}
           onDeleteMember={financeApp.deleteGroupMember}
           onAddExpense={financeApp.addGroupExpense}

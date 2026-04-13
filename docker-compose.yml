@@ -57,6 +57,13 @@ services:
       - "0.0.0.0:3000:3000"
     depends_on:
       - api
+    develop:
+      watch:
+        - path: ./apps/web/package.json
+          action: rebuild
+        - path: ./apps/web
+          target: /usr/src/app/apps/web
+          action: sync
 
 volumes:
   postgres_data:

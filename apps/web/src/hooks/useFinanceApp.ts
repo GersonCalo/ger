@@ -29,7 +29,6 @@ const setHash = (tab: AppTab) => {
   }
 };
 
-const GROUPS_NOTICE = 'Tus gastos y liquidaciones de grupo también ajustan tu disponible personal.';
 const AUTO_REFRESH_INTERVAL_MS = 10_000;
 const EMPTY_BALANCE_SUMMARY: GlobalBalancePayload = {
   personalIncome: 0,
@@ -811,7 +810,6 @@ export const useFinanceApp = () => {
     groups,
     groupsBusy,
     groupsError,
-    groupsNotice: GROUPS_NOTICE,
     health,
     isAuthenticated: Boolean(user && token),
     isPushEnabled: isPushEnabled(),

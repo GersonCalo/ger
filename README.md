@@ -36,6 +36,59 @@ docker compose up -d --build
    - API: http://localhost:8080/health
    - Web: http://localhost:3000
 
+## Desarrollo con Docker Compose Watch
+
+Para evitar reconstruir el contenedor cada vez que modificas el frontend, puedes usar el modo watch de Docker Compose. Este sincroniza los archivos de `apps/web/` con el contenedor en tiempo real, y Vite recarga la página automáticamente.
+
+### Iniciar en modo watch
+
+```bash
+docker compose watch
+```
+
+Esto es equivalente a `up` pero con sincronización activa. Funciona en primer plano (muestra logs) — puedes pulsar `Ctrl+C` para parar.
+
+### Comportamiento
+
+| Qué cambias | Qué pasa |
+|---|---|
+| Archivos `.tsx`, `.css`, `.ts` en `apps/web/` | Sync inmediato, Vite recarga solo |
+| `package.json` en `apps/web/` | Reconstruye el contenedor automáticamente |
+| Schema de Prisma | Requiere `docker compose up -d --build` para reconstruir API |
+
+### Parar el modo watch
+
+```bash
+# Con Ctrl+C en la terminal, o en otra ventana:
+docker compose down
+```
+
+### Modo clásico (sin watch)
+
+Si prefieres el flujo tradicional:
+
+```bash
+docker compose up -d --build   # Levantar
+docker compose down            # Parar
+```
+
+## Desarrollo con npm (sin Docker)
+
+Puedes correr los servicios por separado para desarrollo local rápido:
+
+```bash
+# 1. Solo base de datos con Docker
+docker compose up -d db migrate
+
+# 2. API en modo watch (se reinicia al cambiar archivos)
+npm run dev:api
+
+# 3. Frontend Vite con HMR
+npm run dev:web
+```
+
+Esto te da recarga en caliente tanto para el backend como para el frontend sin necesidad de reconstruir contenedores.
+
 ## Nota importante sobre Prisma
 - El servicio `migrate` ejecuta `prisma db push` al arrancar.
 - Si cambias [schema.prisma](file:///c:/Users/gerson/Documents/trae_projects/ger/packages/db/schema.prisma), usa `docker compose up -d --build` para que la imagen de la API incluya el schema y el cliente Prisma actualizados.

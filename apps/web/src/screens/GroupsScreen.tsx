@@ -13,7 +13,6 @@ type GroupsScreenProps = {
   error: string | null;
   groups: GroupSummary[];
   groupsBusy: boolean;
-  notice: string;
   categories?: Category[];
   onAddMember: (input: { groupId: string; displayName: string }) => Promise<void>;
   onDeleteMember: (groupId: string, memberId: string) => Promise<void>;
@@ -76,7 +75,6 @@ export const GroupsScreen = ({
   error,
   groups,
   groupsBusy,
-  notice,
   onAddExpense,
   onAddMember,
   onDeleteMember,
@@ -364,10 +362,9 @@ export const GroupsScreen = ({
           ) : (
             <>
               <div className="stats-grid">
-                <StatCard label="Tus grupos" value={`${groups.length}`} />
+                <StatCard label="Total grupos" value={`${groups.length}`} />
                 <StatCard label="Total movimientos" value={`${groups.reduce((sum, group) => sum + group.expensesCount, 0)}`} />
               </div>
-              {notice ? <div className="helper-note">{notice}</div> : null}
               <div className="group-list">
                 {groups.map(group => {
                   const groupSummary = summarizeTransactions(group);
