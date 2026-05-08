@@ -219,7 +219,7 @@ export const useFinanceApp = () => {
       try {
         const [nextUser, nextTransactions, nextGroups, nextBalance, nextCategories] = await Promise.all([
           api.me(sessionToken),
-          api.transactions(sessionToken),
+          api.transactions(sessionToken, { limit: 'all' }),
           api.groups(sessionToken),
           api.balance(sessionToken),
           api.getCategories(sessionToken).then((res: any) => res.categories || res).catch(() => []),
@@ -284,6 +284,20 @@ export const useFinanceApp = () => {
     refreshSelectedGroup(selectedGroupId);
   }, [refreshSelectedGroup, selectedGroupId, token]);
 
+  const refreshTransactions = useCallback(async (options?: { silent?: boolean; all?: boolean }) => {
+    if (!token) return;
+    if (!options?.silent) setDataBusy(true);
+    try {
+      const list = await api.transactions(token, options?.all ? { limit: 'all' } : undefined);
+      setTransactions(list || []);
+      setTransactionError(null);
+    } catch (error: any) {
+      setTransactionError(error.message || 'Error cargando historial');
+    } finally {
+      if (!options?.silent) setDataBusy(false);
+    }
+  }, [token]);
+
   const runAutomaticRefresh = useCallback(async () => {
     if (!token || booting || authBusy || dataBusy || groupsBusy) return;
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
@@ -304,17 +318,21 @@ export const useFinanceApp = () => {
           await Promise.all([
             refreshSelectedGroup(resolvedGroupId, { silent: true, groupsSource: nextGroups }),
             refreshBalance({ silent: true }),
+            refreshTransactions({ silent: true, all: true }),
           ]);
         } else {
           setSelectedGroupData(null);
           setSelectedGroupJoinCode(null);
-          await refreshBalance({ silent: true });
+          await Promise.all([
+            refreshBalance({ silent: true }),
+            refreshTransactions({ silent: true, all: true }),
+          ]);
         }
 
         return;
       }
 
-      await Promise.all([refreshGroups({ silent: true }), refreshBalance({ silent: true })]);
+      await Promise.all([refreshGroups({ silent: true }), refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
     } finally {
       autoRefreshInFlightRef.current = false;
     }
@@ -327,6 +345,7 @@ export const useFinanceApp = () => {
     refreshBalance,
     refreshGroups,
     refreshSelectedGroup,
+    refreshTransactions,
     selectedGroupId,
     token,
   ]);
@@ -421,20 +440,6 @@ export const useFinanceApp = () => {
     },
     [onAuthSuccess]
   );
-
-  const refreshTransactions = useCallback(async (options?: { silent?: boolean }) => {
-    if (!token) return;
-    if (!options?.silent) setDataBusy(true);
-    try {
-      const list = await api.transactions(token);
-      setTransactions(list || []);
-      setTransactionError(null);
-    } catch (error: any) {
-      setTransactionError(error.message || 'Error cargando historial');
-    } finally {
-      if (!options?.silent) setDataBusy(false);
-    }
-  }, [token]);
 
   const createTransaction = useCallback(
     async (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => {
@@ -610,7 +615,7 @@ export const useFinanceApp = () => {
         await Promise.all([
           refreshSelectedGroup(groupId, { silent: true }),
           refreshBalance({ silent: true }),
-          refreshTransactions({ silent: true }),
+          refreshTransactions({ silent: true, all: true }),
         ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo crear el gasto');
@@ -647,7 +652,7 @@ export const useFinanceApp = () => {
         await Promise.all([
           refreshSelectedGroup(groupId, { silent: true }),
           refreshBalance({ silent: true }),
-          refreshTransactions({ silent: true }),
+          refreshTransactions({ silent: true, all: true }),
         ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo actualizar el gasto');

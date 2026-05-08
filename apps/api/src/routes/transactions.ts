@@ -16,14 +16,18 @@ transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
   return res.json(balance);
 });
 
-transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
+transactionsRouter.get('/transactions', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
+
+  // Support ?limit=all for full history (used by chart)
+  const limitParam = typeof req.query.limit === 'string' ? req.query.limit : null;
+  const takeLimit = limitParam === 'all' ? undefined : 50;
 
   const transactions = await prisma.personalTransaction.findMany({
     where: { userId },
     orderBy: { occurredAt: 'desc' },
-    take: 50,
+    ...(takeLimit !== undefined ? { take: takeLimit } : {}),
     select: {
       id: true,
       type: true,

@@ -71,8 +71,11 @@ export const api = {
     const data = await parseJson<{ user: AuthUser }>(response);
     return data.user;
   },
-  async transactions(token: string) {
-    const response = await fetch(`${API_BASE}/transactions`, {
+  async transactions(token: string, options?: { limit?: 'all' }) {
+    const url = options?.limit === 'all'
+      ? `${API_BASE}/transactions?limit=all`
+      : `${API_BASE}/transactions`;
+    const response = await fetch(url, {
       headers: createHeaders(token),
     });
 

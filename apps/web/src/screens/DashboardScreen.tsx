@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
+import { BalanceChart } from '@/components/BalanceChart';
 import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { AuthUser, GroupSummary, Transaction } from '@/types';
@@ -51,6 +52,8 @@ export const DashboardScreen = ({
           </button>
         </div>
       </section>
+
+      <BalanceChart transactions={transactions} currency={user.currency} />
 
       <div className="stats-grid">
         <StatCard label="Total" value={formatMoney(summary.total, user.currency)} tone="accent" />
