@@ -102,7 +102,7 @@ export const Home: React.FC = () => {
     const data = text ? JSON.parse(text) : null;
 
     if (!res.ok) {
-      const message = data?.message || `Error (${res.status})`;
+      const message = data?.error?.message || data?.message || `Error (${res.status})`;
       throw new Error(message);
     }
     return data as T;

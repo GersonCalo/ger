@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { sendError, zodIssuesDetails } from '../lib/apiError.js';
 
 export const authRouter = Router();
 
@@ -19,7 +20,7 @@ authRouter.post('/auth/register', async (req, res) => {
 
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const email = parsed.data.email.trim().toLowerCase();
@@ -39,10 +40,10 @@ authRouter.post('/auth/register', async (req, res) => {
     return res.status(201).json({ token, user });
   } catch (error: any) {
     if (error?.code === 'P2002') {
-      return res.status(409).json({ message: 'Ese email ya está registrado' });
+      return sendError(res, 409, 'AUTH_EMAIL_ALREADY_REGISTERED', 'Ese email ya está registrado');
     }
 
-    return res.status(500).json({ message: 'Error creando usuario' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
@@ -54,7 +55,7 @@ authRouter.post('/auth/login', async (req, res) => {
 
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const email = parsed.data.email.trim().toLowerCase();
@@ -64,12 +65,12 @@ authRouter.post('/auth/login', async (req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({ message: 'Email o contraseña incorrectos' });
+    return sendError(res, 401, 'AUTH_INVALID_CREDENTIALS', 'Email o contraseña incorrectos');
   }
 
   const matches = await bcrypt.compare(parsed.data.password, user.passwordHash);
   if (!matches) {
-    return res.status(401).json({ message: 'Email o contraseña incorrectos' });
+    return sendError(res, 401, 'AUTH_INVALID_CREDENTIALS', 'Email o contraseña incorrectos');
   }
 
   const token = signToken(user.id);
@@ -89,7 +90,7 @@ authRouter.get('/me', requireAuth, async (_req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({ message: 'No autenticado' });
+    return sendError(res, 401, 'AUTH_UNAUTHENTICATED', 'No autenticado');
   }
 
   return res.json({ user });

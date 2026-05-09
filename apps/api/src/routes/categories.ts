@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { sendError, zodIssuesDetails } from '../lib/apiError.js';
 
 export const categoriesRouter = Router();
 
@@ -12,7 +13,6 @@ const createCategorySchema = z.object({
   icon: z.string().trim().optional(),
 });
 
-// GET /categories - Global and Personal categories
 categoriesRouter.get('/categories', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
 
@@ -59,13 +59,12 @@ categoriesRouter.get('/categories', requireAuth, async (_req, res) => {
     });
 });
 
-// POST /categories - Create a personal category
 categoriesRouter.post('/categories', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
 
   const parsed = createCategorySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   try {
@@ -97,18 +96,16 @@ categoriesRouter.post('/categories', requireAuth, async (req, res) => {
     });
   } catch (error: any) {
     if (error?.code === 'P2002') {
-      return res.status(409).json({ message: 'Ya existe una categoría personal con ese nombre' });
+      return sendError(res, 409, 'CATEGORY_ALREADY_EXISTS', 'Ya existe una categoría personal con ese nombre');
     }
-    return res.status(500).json({ message: 'Error creando categoría' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
-// GET /groups/:id/categories - Global and Group categories
 categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const groupId = req.params.id;
 
-  // Validate group access
   const group = await prisma.group.findFirst({
     where: {
       id: groupId,
@@ -117,7 +114,7 @@ categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => 
   });
 
   if (!group) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   const globalCategories = await prisma.category.findMany({
@@ -162,7 +159,6 @@ categoriesRouter.get('/groups/:id/categories', requireAuth, async (req, res) => 
     });
 });
 
-// PATCH /categories/:id - Update a personal category
 categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const categoryId = req.params.id;
@@ -175,11 +171,10 @@ categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
 
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   try {
-    // Find the category and verify it belongs to the user
     const category = await prisma.category.findFirst({
       where: {
         id: categoryId,
@@ -189,10 +184,9 @@ categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
     });
 
     if (!category) {
-      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+      return sendError(res, 404, 'CATEGORY_NOT_FOUND_OR_FORBIDDEN', 'Categoría no encontrada o sin permisos');
     }
 
-    // Check if trying to update name and it already exists
     if (parsed.data.name && parsed.data.name !== category.name) {
       const existing = await prisma.category.findFirst({
         where: {
@@ -203,7 +197,7 @@ categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
       });
 
       if (existing) {
-        return res.status(409).json({ message: 'Ya existe una categoría personal con ese nombre' });
+        return sendError(res, 409, 'CATEGORY_ALREADY_EXISTS', 'Ya existe una categoría personal con ese nombre');
       }
     }
 
@@ -233,17 +227,15 @@ categoriesRouter.patch('/categories/:id', requireAuth, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Error actualizando categoría' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
-// DELETE /categories/:id - Delete a personal category
 categoriesRouter.delete('/categories/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const categoryId = req.params.id;
 
   try {
-    // Find the category and verify it belongs to the user
     const category = await prisma.category.findFirst({
       where: {
         id: categoryId,
@@ -253,26 +245,23 @@ categoriesRouter.delete('/categories/:id', requireAuth, async (req, res) => {
     });
 
     if (!category) {
-      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+      return sendError(res, 404, 'CATEGORY_NOT_FOUND_OR_FORBIDDEN', 'Categoría no encontrada o sin permisos');
     }
 
-    // Delete the category
     await prisma.category.delete({
       where: { id: categoryId },
     });
 
     return res.json({ message: 'Categoría eliminada correctamente' });
   } catch (error) {
-    return res.status(500).json({ message: 'Error eliminando categoría' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
-// POST /groups/:id/categories - Create a group category
 categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const groupId = req.params.id;
 
-  // Validate group access
   const group = await prisma.group.findFirst({
     where: {
       id: groupId,
@@ -281,12 +270,12 @@ categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) =>
   });
 
   if (!group) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   const parsed = createCategorySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   try {
@@ -318,13 +307,12 @@ categoriesRouter.post('/groups/:id/categories', requireAuth, async (req, res) =>
     });
   } catch (error: any) {
     if (error?.code === 'P2002') {
-      return res.status(409).json({ message: 'Ya existe una categoría en el grupo con ese nombre' });
+      return sendError(res, 409, 'CATEGORY_ALREADY_EXISTS', 'Ya existe una categoría en el grupo con ese nombre');
     }
-    return res.status(500).json({ message: 'Error creando categoría de grupo' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
-// PATCH /groups/:groupId/categories/:id - Update a group category
 categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const groupId = req.params.groupId;
@@ -338,11 +326,10 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
 
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   try {
-    // Validate group access
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
@@ -351,10 +338,9 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
     });
 
     if (!group) {
-      return res.status(404).json({ message: 'Grupo no encontrado' });
+      return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
     }
 
-    // Find the category and verify it belongs to the group
     const category = await prisma.category.findFirst({
       where: {
         id: categoryId,
@@ -363,10 +349,9 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
     });
 
     if (!category) {
-      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+      return sendError(res, 404, 'CATEGORY_NOT_FOUND_OR_FORBIDDEN', 'Categoría no encontrada o sin permisos');
     }
 
-    // Check if trying to update name and it already exists in this group
     if (parsed.data.name && parsed.data.name !== category.name) {
       const existing = await prisma.category.findFirst({
         where: {
@@ -376,7 +361,7 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
       });
 
       if (existing) {
-        return res.status(409).json({ message: 'Ya existe una categoría en el grupo con ese nombre' });
+        return sendError(res, 409, 'CATEGORY_ALREADY_EXISTS', 'Ya existe una categoría en el grupo con ese nombre');
       }
     }
 
@@ -406,18 +391,16 @@ categoriesRouter.patch('/groups/:groupId/categories/:id', requireAuth, async (re
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Error actualizando categoría' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });
 
-// DELETE /groups/:groupId/categories/:id - Delete a group category
 categoriesRouter.delete('/groups/:groupId/categories/:id', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const groupId = req.params.groupId;
   const categoryId = req.params.id;
 
   try {
-    // Validate group access
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
@@ -426,10 +409,9 @@ categoriesRouter.delete('/groups/:groupId/categories/:id', requireAuth, async (r
     });
 
     if (!group) {
-      return res.status(404).json({ message: 'Grupo no encontrado' });
+      return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
     }
 
-    // Find the category and verify it belongs to the group
     const category = await prisma.category.findFirst({
       where: {
         id: categoryId,
@@ -438,16 +420,15 @@ categoriesRouter.delete('/groups/:groupId/categories/:id', requireAuth, async (r
     });
 
     if (!category) {
-      return res.status(404).json({ message: 'Categoría no encontrada o sin permisos' });
+      return sendError(res, 404, 'CATEGORY_NOT_FOUND_OR_FORBIDDEN', 'Categoría no encontrada o sin permisos');
     }
 
-    // Delete the category
     await prisma.category.delete({
       where: { id: categoryId },
     });
 
     return res.json({ message: 'Categoría eliminada correctamente' });
   } catch (error) {
-    return res.status(500).json({ message: 'Error eliminando categoría' });
+    return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
 });

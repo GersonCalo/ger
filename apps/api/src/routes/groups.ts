@@ -13,6 +13,7 @@ import {
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { sendPushToUser } from '../lib/push.js';
+import { sendError, zodIssuesDetails, type ApiErrorBody } from '../lib/apiError.js';
 
 export const groupsRouter = Router();
 
@@ -118,9 +119,7 @@ const joinByCodeSchema = z.object({
 
 type RouteError = {
   status: number;
-  body: {
-    message: string;
-  };
+  body: ApiErrorBody;
 };
 
 const generateJoinCodeValue = () =>
@@ -214,7 +213,7 @@ const assertAccessibleGroup = async (groupId: string, userId: string) => {
   const group = await getAccessibleGroup(groupId, userId);
   if (!group) {
     return {
-      error: { status: 404, body: { message: 'Grupo no encontrado' } } as RouteError,
+      error: { status: 404, body: { error: { code: 'GROUP_NOT_FOUND', message: 'Grupo no encontrado' } } } as RouteError,
     } as { error: RouteError; group?: never };
   }
 
@@ -225,7 +224,7 @@ const assertAdminGroup = async (groupId: string, userId: string) => {
   const group = await getAdminGroup(groupId, userId);
   if (!group) {
     return {
-      error: { status: 403, body: { message: 'No autorizado para administrar este grupo' } } as RouteError,
+      error: { status: 403, body: { error: { code: 'GROUP_ADMIN_REQUIRED', message: 'No autorizado para administrar este grupo' } } } as RouteError,
     } as { error: RouteError; group?: never };
   }
 
@@ -241,7 +240,7 @@ const resolveMemberDisplayName = async (input: z.infer<typeof groupMemberInputSc
 
     if (!user) {
       return {
-        error: { status: 400, body: { message: 'El usuario indicado no existe' } } as RouteError,
+        error: { status: 400, body: { error: { code: 'GROUP_MEMBER_USER_NOT_FOUND', message: 'El usuario indicado no existe' } } } as RouteError,
       } as { error: RouteError; displayName?: never };
     }
 
@@ -403,7 +402,7 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
 
   const parsed = createGroupSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const owner = await prisma.user.findUnique({
@@ -412,7 +411,7 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
   });
 
   if (!owner) {
-    return res.status(401).json({ message: 'No autenticado' });
+    return sendError(res, 401, 'AUTH_UNAUTHENTICATED', 'No autenticado');
   }
 
   const joinCode = await createUniqueJoinCode();
@@ -426,7 +425,7 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
     }
 
     if (member.userId && preparedMembers.some(item => item.userId === member.userId)) {
-      return res.status(400).json({ message: 'No puedes repetir el mismo usuario dentro del grupo' });
+      return sendError(res, 400, 'GROUP_MEMBER_DUPLICATE', 'No puedes repetir el mismo usuario dentro del grupo');
     }
 
     preparedMembers.push({
@@ -499,6 +498,7 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
             },
           },
         },
+        orderBy: { occurredAt: 'desc' },
       },
     },
   });
@@ -511,7 +511,7 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
 
   const parsed = joinByCodeSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const code = parsed.data.code.trim().toUpperCase();
@@ -521,7 +521,7 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({ message: 'No autenticado' });
+    return sendError(res, 401, 'AUTH_UNAUTHENTICATED', 'No autenticado');
   }
 
   const group = await prisma.group.findUnique({
@@ -575,11 +575,11 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
   });
 
   if (!group) {
-    return res.status(404).json({ message: 'Código de grupo no válido' });
+    return sendError(res, 404, 'GROUP_JOIN_CODE_INVALID', 'Código de grupo no válido');
   }
 
   if (group.members.some((member: { userId: string | null }) => member.userId === userId)) {
-    return res.status(400).json({ message: 'Ya formas parte de este grupo' });
+    return sendError(res, 400, 'GROUP_ALREADY_MEMBER', 'Ya formas parte de este grupo');
   }
 
   await prisma.groupMember.create({
@@ -645,7 +645,7 @@ groupsRouter.post('/groups/join-by-code', requireAuth, async (req, res) => {
   });
 
   if (!refreshedGroup) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   return res.status(201).json({
@@ -672,7 +672,7 @@ groupsRouter.get('/groups/:id/join-code', requireAuth, async (req, res) => {
   });
 
   if (!group) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   let joinCode = group.joinCode;
@@ -719,11 +719,11 @@ groupsRouter.post('/groups/:id/members', requireAuth, async (req, res) => {
 
   const parsed = groupMemberInputSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   if (parsed.data.userId && access.group.members.some((member: { userId: string | null }) => member.userId === parsed.data.userId)) {
-    return res.status(400).json({ message: 'Ese usuario ya pertenece al grupo' });
+    return sendError(res, 400, 'GROUP_MEMBER_ALREADY_EXISTS', 'Ese usuario ya pertenece al grupo');
   }
 
   const resolved = await resolveMemberDisplayName(parsed.data);
@@ -761,18 +761,18 @@ groupsRouter.put('/groups/:id/members/:mid', requireAuth, async (req, res) => {
 
   const parsed = updateMemberSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const member = access.group.members.find((item: { id: string }) => item.id === req.params.mid);
   if (!member) {
-    return res.status(404).json({ message: 'Miembro no encontrado' });
+    return sendError(res, 404, 'GROUP_MEMBER_NOT_FOUND', 'Miembro no encontrado');
   }
 
   if (member.userId === userId && parsed.data.role === 'member') {
     const adminCount = access.group.members.filter((item: { role: string }) => item.role === 'admin').length;
     if (adminCount <= 1) {
-      return res.status(400).json({ message: 'El último admin no puede perder permisos de administración' });
+      return sendError(res, 400, 'GROUP_LAST_ADMIN_CANNOT_DEMOTE', 'El último admin no puede perder permisos de administración');
     }
   }
 
@@ -805,21 +805,21 @@ groupsRouter.delete('/groups/:id/members/:mid', requireAuth, async (req, res) =>
 
   const member = access.group.members.find((item: { id: string }) => item.id === req.params.mid);
   if (!member) {
-    return res.status(404).json({ message: 'Miembro no encontrado' });
+    return sendError(res, 404, 'GROUP_MEMBER_NOT_FOUND', 'Miembro no encontrado');
   }
 
   if (member.leftAt) {
-    return res.status(400).json({ message: 'Este miembro ya fue dado de baja' });
+    return sendError(res, 400, 'GROUP_MEMBER_ALREADY_LEFT', 'Este miembro ya fue dado de baja');
   }
 
   if (member.userId === userId) {
-    return res.status(400).json({ message: 'No puedes eliminarte a ti mismo del grupo' });
+    return sendError(res, 400, 'GROUP_CANNOT_REMOVE_SELF', 'No puedes eliminarte a ti mismo del grupo');
   }
 
   if (member.role === 'admin') {
     const adminCount = access.group.members.filter((item: { role: string; leftAt?: Date | null }) => item.role === 'admin' && !item.leftAt).length;
     if (adminCount <= 1) {
-      return res.status(400).json({ message: 'No puedes eliminar al último admin del grupo' });
+      return sendError(res, 400, 'GROUP_LAST_ADMIN_CANNOT_REMOVE', 'No puedes eliminar al último admin del grupo');
     }
   }
 
@@ -828,7 +828,6 @@ groupsRouter.delete('/groups/:id/members/:mid', requireAuth, async (req, res) =>
     data: { leftAt: new Date() },
   });
 
-  // Notify the removed member if they have a userId
   if (member.userId) {
     const groupInfo = await prisma.group.findUnique({
       where: { id: access.group.id },
@@ -854,10 +853,9 @@ groupsRouter.post('/groups/:id/members/:mid/rejoin', requireAuth, async (req, re
 
   const member = access.group.members.find((item: { id: string }) => item.id === req.params.mid);
   if (member) {
-    return res.status(400).json({ message: 'Este miembro ya está activo en el grupo' });
+    return sendError(res, 400, 'GROUP_MEMBER_ALREADY_ACTIVE', 'Este miembro ya está activo en el grupo');
   }
 
-  // Look for the member in all members (including soft-deleted)
   const allMembers = await prisma.groupMember.findMany({
     where: { groupId: access.group.id, id: req.params.mid },
     select: { id: true, leftAt: true, role: true },
@@ -865,11 +863,11 @@ groupsRouter.post('/groups/:id/members/:mid/rejoin', requireAuth, async (req, re
 
   const targetMember = allMembers[0];
   if (!targetMember) {
-    return res.status(404).json({ message: 'Miembro no encontrado' });
+    return sendError(res, 404, 'GROUP_MEMBER_NOT_FOUND', 'Miembro no encontrado');
   }
 
   if (!targetMember.leftAt) {
-    return res.status(400).json({ message: 'Este miembro ya está activo' });
+    return sendError(res, 400, 'GROUP_MEMBER_ALREADY_ACTIVE', 'Este miembro ya está activo');
   }
 
   const reactivated = await prisma.groupMember.update({
@@ -941,32 +939,32 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
 
   const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
   if (!requesterMember) {
-    return res.status(403).json({ message: 'No autorizado para añadir gastos en este grupo' });
+    return sendError(res, 403, 'GROUP_EXPENSE_FORBIDDEN', 'No autorizado para añadir gastos en este grupo');
   }
 
   const parsed = expenseSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const amount = normalizeAmount(parsed.data.amount);
   if (!amount) {
-    return res.status(400).json({ message: 'Monto inválido' });
+    return sendError(res, 400, 'GROUP_EXPENSE_INVALID_AMOUNT', 'Monto inválido');
   }
 
   const occurredAt = normalizeOccurredAt(parsed.data.occurredAt);
   if (!occurredAt) {
-    return res.status(400).json({ message: 'Fecha inválida' });
+    return sendError(res, 400, 'GROUP_EXPENSE_INVALID_DATE', 'Fecha inválida');
   }
 
   const payerExists = access.group.members.some((member: { id: string }) => member.id === parsed.data.payerMemberId);
   if (!payerExists) {
-    return res.status(400).json({ message: 'El pagador no pertenece al grupo' });
+    return sendError(res, 400, 'GROUP_EXPENSE_PAYER_NOT_IN_GROUP', 'El pagador no pertenece al grupo');
   }
 
   const splitResult = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members, parsed.data.splits);
   if (splitResult.error) {
-    return res.status(400).json({ message: splitResult.error });
+    return sendError(res, 400, 'GROUP_EXPENSE_SPLIT_INVALID', splitResult.error);
   }
 
   if (parsed.data.categoryId) {
@@ -981,7 +979,7 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     });
 
     if (!category) {
-      return res.status(400).json({ message: 'Categoría no encontrada o no pertenece al grupo' });
+      return sendError(res, 400, 'GROUP_EXPENSE_CATEGORY_NOT_IN_GROUP', 'Categoría no encontrada o no pertenece al grupo');
     }
   }
 
@@ -1033,14 +1031,12 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     return created;
   });
 
-  // Send push notifications to all group members except the creator
   const creatorMemberId = requesterMember.id;
   const allGroupMembers = await prisma.groupMember.findMany({
     where: { groupId: access.group.id },
     select: { id: true, userId: true, displayName: true },
   });
 
-  const groupName = access.group.id; // We need group name — fetch it
   const groupInfo = await prisma.group.findUnique({
     where: { id: access.group.id },
     select: { name: true },
@@ -1071,7 +1067,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
 
   const parsed = expenseSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const expense = await prisma.groupExpense.findFirst({
@@ -1083,7 +1079,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
   });
 
   if (!expense) {
-    return res.status(404).json({ message: 'Gasto no encontrado' });
+    return sendError(res, 404, 'GROUP_EXPENSE_NOT_FOUND', 'Gasto no encontrado');
   }
 
   const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
@@ -1094,27 +1090,27 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
     (!expense.createdByMemberId && requesterMember?.id === expense.payerMemberId);
 
   if (!canEditExpense) {
-    return res.status(403).json({ message: 'No autorizado para editar este gasto' });
+    return sendError(res, 403, 'GROUP_EXPENSE_FORBIDDEN', 'No autorizado para editar este gasto');
   }
 
   const amount = normalizeAmount(parsed.data.amount);
   if (!amount) {
-    return res.status(400).json({ message: 'Monto inválido' });
+    return sendError(res, 400, 'GROUP_EXPENSE_INVALID_AMOUNT', 'Monto inválido');
   }
 
   const occurredAt = normalizeOccurredAt(parsed.data.occurredAt);
   if (!occurredAt) {
-    return res.status(400).json({ message: 'Fecha inválida' });
+    return sendError(res, 400, 'GROUP_EXPENSE_INVALID_DATE', 'Fecha inválida');
   }
 
   const payerExists = access.group.members.some((member: { id: string }) => member.id === parsed.data.payerMemberId);
   if (!payerExists) {
-    return res.status(400).json({ message: 'El pagador no pertenece al grupo' });
+    return sendError(res, 400, 'GROUP_EXPENSE_PAYER_NOT_IN_GROUP', 'El pagador no pertenece al grupo');
   }
 
   const splitResult = buildExpenseSplits(amount, parsed.data.splitMethod, access.group.members, parsed.data.splits);
   if (splitResult.error) {
-    return res.status(400).json({ message: splitResult.error });
+    return sendError(res, 400, 'GROUP_EXPENSE_SPLIT_INVALID', splitResult.error);
   }
 
   if (parsed.data.categoryId) {
@@ -1129,7 +1125,7 @@ groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
     });
 
     if (!category) {
-      return res.status(400).json({ message: 'Categoría no encontrada o no pertenece al grupo' });
+      return sendError(res, 400, 'GROUP_EXPENSE_CATEGORY_NOT_IN_GROUP', 'Categoría no encontrada o no pertenece al grupo');
     }
   }
 
@@ -1203,7 +1199,7 @@ groupsRouter.delete('/groups/:id/expenses/:eid', requireAuth, async (req, res) =
   });
 
   if (!expense) {
-    return res.status(404).json({ message: 'Gasto no encontrado' });
+    return sendError(res, 404, 'GROUP_EXPENSE_NOT_FOUND', 'Gasto no encontrado');
   }
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -1298,7 +1294,7 @@ groupsRouter.get('/groups/:id/balances', requireAuth, async (req, res) => {
   });
 
   if (!group) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   const balances = calculateGroupBalances({
@@ -1378,35 +1374,35 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
 
   const parsed = settlementSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   if (parsed.data.fromMemberId === parsed.data.toMemberId) {
-    return res.status(400).json({ message: 'La liquidación debe ser entre miembros diferentes' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_SAME_MEMBER', 'La liquidación debe ser entre miembros diferentes');
   }
 
   const amount = normalizeAmount(parsed.data.amount);
   if (!amount) {
-    return res.status(400).json({ message: 'Monto inválido' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_AMOUNT', 'Monto inválido');
   }
 
   const occurredAt = normalizeOccurredAt(parsed.data.occurredAt);
   if (!occurredAt) {
-    return res.status(400).json({ message: 'Fecha inválida' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_DATE', 'Fecha inválida');
   }
 
   const memberIds = new Set(access.group.members.map((member: { id: string }) => member.id));
   if (!memberIds.has(parsed.data.fromMemberId) || !memberIds.has(parsed.data.toMemberId)) {
-    return res.status(400).json({ message: 'Los miembros indicados no pertenecen al grupo' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_MEMBERS_NOT_IN_GROUP', 'Los miembros indicados no pertenecen al grupo');
   }
 
   const requesterMember = access.group.members.find((member: { userId: string | null }) => member.userId === userId);
   if (!requesterMember) {
-    return res.status(403).json({ message: 'Debes pertenecer al grupo como miembro real para registrar una liquidación' });
+    return sendError(res, 403, 'GROUP_SETTLEMENT_FORBIDDEN_MEMBER_REQUIRED', 'Debes pertenecer al grupo como miembro real para registrar una liquidación');
   }
 
   if (requesterMember.id !== parsed.data.fromMemberId) {
-    return res.status(403).json({ message: 'Solo puedes registrar liquidaciones saliendo de tu propio balance' });
+    return sendError(res, 403, 'GROUP_SETTLEMENT_FORBIDDEN_ONLY_OWN_BALANCE', 'Solo puedes registrar liquidaciones saliendo de tu propio balance');
   }
 
   const financialGroup = await prisma.group.findUnique({
@@ -1448,7 +1444,7 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
   });
 
   if (!financialGroup) {
-    return res.status(404).json({ message: 'Grupo no encontrado' });
+    return sendError(res, 404, 'GROUP_NOT_FOUND', 'Grupo no encontrado');
   }
 
   const balances = calculateGroupBalances({
@@ -1499,18 +1495,16 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
   const toBalance = balances.find(balance => balance.memberId === parsed.data.toMemberId);
 
   if (!fromBalance || fromBalance.netCents >= 0) {
-    return res.status(400).json({ message: 'Ese miembro no tiene deuda pendiente que liquidar' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_NO_DEBT', 'Ese miembro no tiene deuda pendiente que liquidar');
   }
 
   if (!toBalance || toBalance.netCents <= 0) {
-    return res.status(400).json({ message: 'Solo puedes liquidar hacia un miembro con saldo a favor' });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_DIRECTION', 'Solo puedes liquidar hacia un miembro con saldo a favor');
   }
 
   const maxAmount = fromCents(Math.min(Math.abs(fromBalance.netCents), toBalance.netCents));
   if (amount > maxAmount) {
-    return res.status(400).json({
-      message: `El monto supera lo pendiente entre ambos miembros. Máximo liquidable: ${maxAmount.toFixed(2)}`,
-    });
+    return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_AMOUNT', `El monto supera lo pendiente entre ambos miembros. Máximo liquidable: ${maxAmount.toFixed(2)}`);
   }
 
   const settlement = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -1537,7 +1531,6 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     return created;
   });
 
-  // Send push to the creditor (toMember) — the one who is being paid
   const toMember = await prisma.groupMember.findUnique({
     where: { id: parsed.data.toMemberId },
     select: { userId: true, displayName: true },
@@ -1572,7 +1565,7 @@ groupsRouter.put('/groups/:id/settlements/:sid', requireAuth, async (req, res) =
 
   const parsed = updateSettlementSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const settlement = await prisma.groupSettlement.findFirst({
@@ -1591,7 +1584,7 @@ groupsRouter.put('/groups/:id/settlements/:sid', requireAuth, async (req, res) =
   });
 
   if (!settlement) {
-    return res.status(404).json({ message: 'Liquidación no encontrada' });
+    return sendError(res, 404, 'GROUP_SETTLEMENT_NOT_FOUND', 'Liquidación no encontrada');
   }
 
   const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {

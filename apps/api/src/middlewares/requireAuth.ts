@@ -25,7 +25,9 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   const userId = getUserIdFromAuthHeader(req.headers.authorization);
 
   if (!userId) {
-    return res.status(401).json({ message: 'No autenticado' });
+    return res.status(401).json({
+      error: { code: 'AUTH_UNAUTHENTICATED', message: 'No autenticado' },
+    });
   }
 
   res.locals.userId = userId;

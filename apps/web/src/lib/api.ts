@@ -22,7 +22,8 @@ const parseJson = async <T>(response: Response) => {
   const payload = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(payload?.message || `Error ${response.status}`);
+    const message = payload?.error?.message ?? payload?.message ?? `Error ${response.status}`;
+    throw new Error(message);
   }
 
   return payload as T;

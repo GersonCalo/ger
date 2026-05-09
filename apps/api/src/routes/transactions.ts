@@ -1,33 +1,55 @@
-import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
+import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
-import { calculateUserBalance } from '../lib/userBalance.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { sendError, zodIssuesDetails } from '../lib/apiError.js';
+import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
 
 export const transactionsRouter = Router();
 
-transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
-  const userId = res.locals.userId as string;
-  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
-  const balance = await calculateUserBalance(userId);
-
-  return res.json(balance);
+const serializeTransaction = (transaction: {
+  id: string;
+  type: string;
+  amount: { toString(): string };
+  category?: { id: string; name: string; type: string; color?: string | null; icon?: string | null } | null;
+  occurredAt: string | Date;
+  note?: string | null;
+  sourceType?: string | null;
+  sourceRefId?: string | null;
+  locked?: boolean;
+  groupId?: string | null;
+  group?: { name: string } | null;
+}) => ({
+  id: transaction.id,
+  type: transaction.type,
+  amount: Number(transaction.amount.toString()),
+  category: transaction.category ? {
+    id: transaction.category.id,
+    name: transaction.category.name,
+    type: transaction.category.type,
+    color: transaction.category.color || '',
+    icon: transaction.category.icon || '',
+  } : null,
+  occurredAt: transaction.occurredAt,
+  note: transaction.note,
+  sourceType: transaction.sourceType,
+  sourceRefId: transaction.sourceRefId,
+  locked: transaction.locked,
+  groupId: transaction.groupId,
+  groupName: transaction.group?.name || null,
 });
 
-transactionsRouter.get('/transactions', requireAuth, async (req, res) => {
+transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
-  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
+  const limit = _req.query.limit === 'all' ? undefined : 50;
 
-  // Support ?limit=all for full history (used by chart)
-  const limitParam = typeof req.query.limit === 'string' ? req.query.limit : null;
-  const takeLimit = limitParam === 'all' ? undefined : 50;
+  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
 
   const transactions = await prisma.personalTransaction.findMany({
     where: { userId },
     orderBy: { occurredAt: 'desc' },
-    ...(takeLimit !== undefined ? { take: takeLimit } : {}),
+    take: limit,
     select: {
       id: true,
       type: true,
@@ -57,25 +79,7 @@ transactionsRouter.get('/transactions', requireAuth, async (req, res) => {
   });
 
   return res.json({
-    transactions: transactions.map((transaction: any) => ({
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category ? {
-        id: transaction.category.id,
-        name: transaction.category.name,
-        type: transaction.category.type,
-        color: transaction.category.color || '',
-        icon: transaction.category.icon || '',
-      } : null,
-      occurredAt: transaction.occurredAt,
-      note: transaction.note,
-      sourceType: transaction.sourceType,
-      sourceRefId: transaction.sourceRefId,
-      locked: transaction.locked,
-      groupId: transaction.groupId,
-      groupName: transaction.group?.name || null,
-    })),
+    transactions: transactions.map(serializeTransaction),
   });
 });
 
@@ -92,17 +96,17 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
 
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const amountValue = typeof parsed.data.amount === 'string' ? Number(parsed.data.amount) : parsed.data.amount;
   if (!Number.isFinite(amountValue) || amountValue <= 0) {
-    return res.status(400).json({ message: 'Monto inválido' });
+    return sendError(res, 400, 'TX_INVALID_AMOUNT', 'Monto inválido');
   }
 
   const occurredAt = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date();
   if (Number.isNaN(occurredAt.getTime())) {
-    return res.status(400).json({ message: 'Fecha inválida' });
+    return sendError(res, 400, 'TX_INVALID_DATE', 'Fecha inválida');
   }
 
   if (parsed.data.categoryId) {
@@ -117,7 +121,7 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
     });
 
     if (!category) {
-      return res.status(400).json({ message: 'Categoría no encontrada o no tienes acceso a ella' });
+      return sendError(res, 400, 'TX_CATEGORY_NOT_ACCESSIBLE', 'Categoría no encontrada o no tienes acceso a ella');
     }
   }
 
@@ -159,25 +163,7 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
   });
 
   return res.status(201).json({
-    transaction: {
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category ? {
-        id: transaction.category.id,
-        name: transaction.category.name,
-        type: transaction.category.type,
-        color: transaction.category.color || '',
-        icon: transaction.category.icon || '',
-      } : null,
-      occurredAt: transaction.occurredAt,
-      note: transaction.note,
-      sourceType: transaction.sourceType,
-      sourceRefId: transaction.sourceRefId,
-      locked: transaction.locked,
-      groupId: transaction.groupId,
-      groupName: transaction.group?.name || null,
-    },
+    transaction: serializeTransaction(transaction),
   });
 });
 
@@ -195,12 +181,12 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
 
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   const hasAnyField = Object.values(parsed.data).some(v => v !== undefined);
   if (!hasAnyField) {
-    return res.status(400).json({ message: 'Datos inválidos' });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos');
   }
 
   await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
@@ -211,11 +197,11 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
   });
 
   if (!existing) {
-    return res.status(404).json({ message: 'Transacción no encontrada' });
+    return sendError(res, 404, 'TX_NOT_FOUND', 'Transacción no encontrada');
   }
 
   if (existing.locked) {
-    return res.status(409).json({ message: 'Transacción bloqueada' });
+    return sendError(res, 409, 'TX_LOCKED', 'Transacción bloqueada');
   }
 
   const updates: Record<string, unknown> = {};
@@ -227,7 +213,7 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
   if (parsed.data.amount !== undefined) {
     const amountValue = typeof parsed.data.amount === 'string' ? Number(parsed.data.amount) : parsed.data.amount;
     if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      return res.status(400).json({ message: 'Monto inválido' });
+      return sendError(res, 400, 'TX_INVALID_AMOUNT', 'Monto inválido');
     }
     updates.amount = amountValue;
   }
@@ -235,7 +221,7 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
   if (parsed.data.occurredAt !== undefined) {
     const occurredAt = new Date(parsed.data.occurredAt);
     if (Number.isNaN(occurredAt.getTime())) {
-      return res.status(400).json({ message: 'Fecha inválida' });
+      return sendError(res, 400, 'TX_INVALID_DATE', 'Fecha inválida');
     }
     updates.occurredAt = occurredAt;
   }
@@ -258,7 +244,7 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
       });
 
       if (!category) {
-        return res.status(400).json({ message: 'Categoría no encontrada o no tienes acceso a ella' });
+        return sendError(res, 400, 'TX_CATEGORY_NOT_ACCESSIBLE', 'Categoría no encontrada o no tienes acceso a ella');
       }
     }
     updates.categoryId = categoryId;
@@ -296,25 +282,7 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
   });
 
   return res.json({
-    transaction: {
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category ? {
-        id: transaction.category.id,
-        name: transaction.category.name,
-        type: transaction.category.type,
-        color: transaction.category.color || '',
-        icon: transaction.category.icon || '',
-      } : null,
-      occurredAt: transaction.occurredAt,
-      note: transaction.note,
-      sourceType: transaction.sourceType,
-      sourceRefId: transaction.sourceRefId,
-      locked: transaction.locked,
-      groupId: transaction.groupId,
-      groupName: transaction.group?.name || null,
-    },
+    transaction: serializeTransaction(transaction),
   });
 });
 
@@ -330,11 +298,11 @@ transactionsRouter.delete('/transactions/:id', requireAuth, async (req, res) => 
   });
 
   if (!existing) {
-    return res.status(404).json({ message: 'Transacción no encontrada' });
+    return sendError(res, 404, 'TX_NOT_FOUND', 'Transacción no encontrada');
   }
 
   if (existing.locked) {
-    return res.status(409).json({ message: 'Transacción bloqueada' });
+    return sendError(res, 409, 'TX_LOCKED', 'Transacción bloqueada');
   }
 
   await prisma.personalTransaction.delete({

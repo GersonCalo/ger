@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import { getVapidPublicKey } from '../lib/push.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { sendError, zodIssuesDetails } from '../lib/apiError.js';
 
 const pushRouter = Router();
 
@@ -17,7 +18,7 @@ const subscribeSchema = z.object({
 pushRouter.get('/push/vapid-public-key', requireAuth, async (_req, res) => {
   const key = getVapidPublicKey();
   if (!key) {
-    return res.status(503).json({ message: 'Push notifications not configured' });
+    return sendError(res, 503, 'PUSH_NOT_CONFIGURED', 'Push notifications not configured');
   }
   res.json({ publicKey: key });
 });
@@ -27,7 +28,7 @@ pushRouter.post('/push/subscribe', requireAuth, async (req, res) => {
 
   const parsed = subscribeSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Datos inválidos', details: parsed.error.format() });
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
   }
 
   await prisma.pushSubscription.upsert({
