@@ -597,6 +597,37 @@ select.field__input option {
   color: var(--bg);
 }
 
+.segmented-control--triple {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ============================================
+   Filters Stack
+   ============================================ */
+
+.filters-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.date-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+/* ============================================
+   Load More
+   ============================================ */
+
+.load-more {
+  padding: var(--s-4) 0;
+  display: flex;
+  justify-content: center;
+}
+
 /* ============================================
    Lists
    ============================================ */

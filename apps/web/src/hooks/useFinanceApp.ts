@@ -13,6 +13,8 @@ import type {
   GroupExpenseSplitInput,
   GroupSummary,
   Transaction,
+  TransactionListFilters,
+  TransactionListResponse,
 } from '@/types';
 
 const VALID_TABS: AppTab[] = ['home', 'transactions', 'groups', 'profile'];
@@ -61,6 +63,11 @@ export const useFinanceApp = () => {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesBusy, setCategoriesBusy] = useState(false);
+
+  const [transactionFilters, setTransactionFilters] = useState<TransactionListFilters>({});
+  const [txNextCursor, setTxNextCursor] = useState<string | null>(null);
+  const [txHasMore, setTxHasMore] = useState(false);
+  const [txLoadingMore, setTxLoadingMore] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setActiveTabState(getInitialTab());
@@ -217,9 +224,9 @@ export const useFinanceApp = () => {
       setCategoriesBusy(true);
 
       try {
-        const [nextUser, nextTransactions, nextGroups, nextBalance, nextCategories] = await Promise.all([
+        const [nextUser, nextTransactionsRes, nextGroups, nextBalance, nextCategories] = await Promise.all([
           api.me(sessionToken),
-          api.transactions(sessionToken, { limit: 'all' }),
+          api.transactions(sessionToken),
           api.groups(sessionToken),
           api.balance(sessionToken),
           api.getCategories(sessionToken).then((res: any) => res.categories || res).catch(() => []),
@@ -227,7 +234,9 @@ export const useFinanceApp = () => {
 
         // @ts-ignore
         setUser(nextUser.user || nextUser);
-        setTransactions(nextTransactions);
+        setTransactions(nextTransactionsRes.transactions);
+        setTxNextCursor(nextTransactionsRes.nextCursor);
+        setTxHasMore(nextTransactionsRes.hasMore);
         setGroups(nextGroups);
         setBalanceSummary(nextBalance);
         setCategories(nextCategories);
@@ -284,19 +293,60 @@ export const useFinanceApp = () => {
     refreshSelectedGroup(selectedGroupId);
   }, [refreshSelectedGroup, selectedGroupId, token]);
 
-  const refreshTransactions = useCallback(async (options?: { silent?: boolean; all?: boolean }) => {
+  const refreshTransactions = useCallback(async (options?: { silent?: boolean; filters?: TransactionListFilters }) => {
     if (!token) return;
     if (!options?.silent) setDataBusy(true);
+
+    const filters = options?.filters ?? transactionFilters;
+
     try {
-      const list = await api.transactions(token, options?.all ? { limit: 'all' } : undefined);
-      setTransactions(list || []);
+      const res = await api.transactions(token, filters);
+      setTransactions(res.transactions || []);
+      setTxNextCursor(res.nextCursor);
+      setTxHasMore(res.hasMore);
       setTransactionError(null);
     } catch (error: any) {
       setTransactionError(error.message || 'Error cargando historial');
     } finally {
       if (!options?.silent) setDataBusy(false);
     }
+  }, [token, transactionFilters]);
+
+  const applyTransactionFilters = useCallback(async (filters: TransactionListFilters) => {
+    setTransactionFilters(filters);
+    if (!token) return;
+    setDataBusy(true);
+    try {
+      const res = await api.transactions(token, filters);
+      setTransactions(res.transactions || []);
+      setTxNextCursor(res.nextCursor);
+      setTxHasMore(res.hasMore);
+      setTransactionError(null);
+    } catch (error: any) {
+      setTransactionError(error.message || 'Error aplicando filtros');
+    } finally {
+      setDataBusy(false);
+    }
   }, [token]);
+
+  const loadMoreTransactions = useCallback(async () => {
+    if (!token || !txNextCursor || txLoadingMore) return;
+    setTxLoadingMore(true);
+    try {
+      const res = await api.transactions(token, { ...transactionFilters, cursor: txNextCursor });
+      setTransactions(prev => {
+        const existingIds = new Set(prev.map(tx => tx.id));
+        const unique = res.transactions.filter(tx => !existingIds.has(tx.id));
+        return [...prev, ...unique];
+      });
+      setTxNextCursor(res.nextCursor);
+      setTxHasMore(res.hasMore);
+    } catch (error: any) {
+      setTransactionError(error.message || 'Error cargando más movimientos');
+    } finally {
+      setTxLoadingMore(false);
+    }
+  }, [token, txNextCursor, txLoadingMore, transactionFilters]);
 
   const runAutomaticRefresh = useCallback(async () => {
     if (!token || booting || authBusy || dataBusy || groupsBusy) return;
@@ -318,21 +368,21 @@ export const useFinanceApp = () => {
           await Promise.all([
             refreshSelectedGroup(resolvedGroupId, { silent: true, groupsSource: nextGroups }),
             refreshBalance({ silent: true }),
-            refreshTransactions({ silent: true, all: true }),
+            refreshTransactions({ silent: true }),
           ]);
         } else {
           setSelectedGroupData(null);
           setSelectedGroupJoinCode(null);
           await Promise.all([
             refreshBalance({ silent: true }),
-            refreshTransactions({ silent: true, all: true }),
+            refreshTransactions({ silent: true }),
           ]);
         }
 
         return;
       }
 
-      await Promise.all([refreshGroups({ silent: true }), refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
+      await Promise.all([refreshGroups({ silent: true }), refreshBalance({ silent: true }), refreshTransactions({ silent: true })]);
     } finally {
       autoRefreshInFlightRef.current = false;
     }
@@ -474,7 +524,7 @@ export const useFinanceApp = () => {
           note: input.note,
           occurredAt: input.occurredAt,
         });
-        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
+        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true })]);
       } catch (error: any) {
         setTransactionError(error.message || 'Error actualizando transacción');
         throw error;
@@ -492,7 +542,7 @@ export const useFinanceApp = () => {
       setTransactionError(null);
       try {
         await api.deleteTransaction(token, id);
-        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
+        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true })]);
       } catch (error: any) {
         setTransactionError(error.message || 'Error eliminando transacción');
         throw error;
@@ -790,7 +840,7 @@ export const useFinanceApp = () => {
         await Promise.all([
           refreshSelectedGroup(input.groupId),
           refreshBalance(),
-          api.transactions(token).then(setTransactions),
+          refreshTransactions({ silent: true }),
         ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo crear la liquidación');
@@ -813,7 +863,7 @@ export const useFinanceApp = () => {
         await Promise.all([
           refreshSelectedGroup(groupId),
           refreshBalance(),
-          api.transactions(token).then(setTransactions),
+          refreshTransactions({ silent: true }),
         ]);
       } catch (error) {
         setGroupsError(error instanceof Error ? error.message : 'No se pudo confirmar la liquidación');
@@ -838,6 +888,7 @@ export const useFinanceApp = () => {
     activeTab,
     addGroupExpense,
     addGroupMember,
+    applyTransactionFilters,
     authBusy,
     authError,
     booting,
@@ -868,6 +919,7 @@ export const useFinanceApp = () => {
     theme: getTheme(),
     setTheme: (t: 'light' | 'dark' | 'system') => setTheme(t),
     joinGroupByCode,
+    loadMoreTransactions,
     login,
     logout,
     refreshBalance,
@@ -882,7 +934,10 @@ export const useFinanceApp = () => {
     setActiveTab,
     setSelectedGroupId,
     transactionError,
+    transactionFilters,
     transactions,
+    txHasMore,
+    txLoadingMore,
     updateCategory,
     updateGroupCategory,
     updateGroupExpense,

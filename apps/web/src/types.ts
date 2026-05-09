@@ -153,3 +153,18 @@ export type JoinGroupByCodePayload = {
   group: GroupSummary;
   message: string;
 };
+
+export type TransactionListFilters = {
+  from?: string;
+  to?: string;
+  type?: 'income' | 'expense';
+  origin?: 'manual' | 'group';
+  cursor?: string;
+  limit?: number;
+};
+
+export type TransactionListResponse = {
+  transactions: Transaction[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};

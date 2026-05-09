@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { AuthUser, Transaction, Category } from '@/types';
+import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
 
 type TransactionsScreenProps = {
   busy: boolean;
@@ -13,6 +13,8 @@ type TransactionsScreenProps = {
   onDeleteTransaction: (id: string) => Promise<void>;
   onCreateCategory: (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
   onRefresh: () => Promise<void>;
+  onApplyFilters: (filters: TransactionListFilters) => Promise<void>;
+  onLoadMore: () => Promise<void>;
   summary: {
     balance: number;
     income: number;
@@ -21,6 +23,9 @@ type TransactionsScreenProps = {
   transactions: Transaction[];
   user: AuthUser;
   categories: Category[];
+  filters: TransactionListFilters;
+  hasMore: boolean;
+  loadingMore: boolean;
 };
 
 export const TransactionsScreen = ({
@@ -31,18 +36,22 @@ export const TransactionsScreen = ({
   onDeleteTransaction,
   onCreateCategory,
   onRefresh,
+  onApplyFilters,
+  onLoadMore,
   summary,
   transactions,
   user,
   categories,
+  filters,
+  hasMore,
+  loadingMore,
 }: TransactionsScreenProps) => {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
-  const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [justAdded, setJustAdded] = useState(false);
-  
+
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('');
@@ -54,6 +63,32 @@ export const TransactionsScreen = ({
   const [editCategoryId, setEditCategoryId] = useState('');
   const [editNote, setEditNote] = useState('');
   const [editOccurredAt, setEditOccurredAt] = useState('');
+
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>(filters?.type ?? 'all');
+  const [filterOrigin, setFilterOrigin] = useState<'all' | 'manual' | 'group'>(filters?.origin ?? 'all');
+  const [filterFrom, setFilterFrom] = useState(filters?.from ? filters.from.slice(0, 16) : '');
+  const [filterTo, setFilterTo] = useState(filters?.to ? filters.to.slice(0, 16) : '');
+
+  const successTimerRef = useRef<number | null>(null);
+
+  const handleApplyFilters = () => {
+    const newFilters: TransactionListFilters = {};
+    if (filterType !== 'all') newFilters.type = filterType;
+    if (filterOrigin !== 'all') newFilters.origin = filterOrigin;
+    if (filterFrom) newFilters.from = new Date(filterFrom).toISOString();
+    if (filterTo) newFilters.to = new Date(filterTo).toISOString();
+    onApplyFilters(newFilters);
+  };
+
+  const hasActiveFilters = filterType !== 'all' || filterOrigin !== 'all' || Boolean(filterFrom) || Boolean(filterTo);
+
+  const clearFiltersAndRefresh = async () => {
+    setFilterType('all');
+    setFilterOrigin('all');
+    setFilterFrom('');
+    setFilterTo('');
+    await onApplyFilters({});
+  };
 
   const startEditing = (transaction: Transaction) => {
     setEditingId(transaction.id);
@@ -67,13 +102,6 @@ export const TransactionsScreen = ({
   const cancelEditing = () => {
     setEditingId(null);
   };
-
-  const successTimerRef = useRef<number | null>(null);
-
-  const filteredTransactions = useMemo(() => {
-    if (filter === 'all') return transactions;
-    return transactions.filter(transaction => transaction.type === filter);
-  }, [filter, transactions]);
 
   return (
     <div className="screen-stack">
@@ -247,35 +275,106 @@ export const TransactionsScreen = ({
       </SectionCard>
 
       <SectionCard title="Historial">
-        <div className="segmented-control">
-          <button
-            type="button"
-            className={`segmented-control__item ${filter === 'all' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
-            Todo
-          </button>
-          <button
-            type="button"
-            className={`segmented-control__item ${filter === 'income' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setFilter('income')}
-          >
-            Ingresos
-          </button>
-          <button
-            type="button"
-            className={`segmented-control__item ${filter === 'expense' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setFilter('expense')}
-          >
-            Gastos
-          </button>
+        <div className="filters-stack">
+          <div className="segmented-control segmented-control--triple">
+            <button
+              type="button"
+              className={`segmented-control__item ${filterType === 'all' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterType('all')}
+            >
+              Todo
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${filterType === 'income' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterType('income')}
+            >
+              Ingresos
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${filterType === 'expense' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterType('expense')}
+            >
+              Gastos
+            </button>
+          </div>
+
+          <div className="segmented-control">
+            <button
+              type="button"
+              className={`segmented-control__item ${filterOrigin === 'all' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterOrigin('all')}
+            >
+              Todo origen
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${filterOrigin === 'manual' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterOrigin('manual')}
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              className={`segmented-control__item ${filterOrigin === 'group' ? 'segmented-control__item--active' : ''}`}
+              onClick={() => setFilterOrigin('group')}
+            >
+              Grupo
+            </button>
+          </div>
+
+          <div className="date-filters">
+            <label className="field">
+              <span className="field__label">Desde</span>
+              <input
+                className="field__input"
+                type="datetime-local"
+                value={filterFrom}
+                onChange={e => setFilterFrom(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Hasta</span>
+              <input
+                className="field__input"
+                type="datetime-local"
+                value={filterTo}
+                onChange={e => setFilterTo(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="button button--primary button--small"
+              onClick={handleApplyFilters}
+              disabled={busy}
+            >
+              Aplicar filtros
+            </button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="button button--ghost button--small"
+                onClick={clearFiltersAndRefresh}
+                disabled={busy}
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
 
-        {filteredTransactions.length === 0 ? (
-          <EmptyState title="No hay movimientos en este filtro" description="Prueba otro filtro." />
+        {transactions.length === 0 ? (
+          <EmptyState
+            title={hasActiveFilters ? 'Sin resultados' : 'No hay movimientos'}
+            description={hasActiveFilters ? 'Prueba otros filtros.' : 'Crea el primero.'}
+          />
         ) : (
           <div className="list-stack">
-            {filteredTransactions.map(transaction => {
+            {transactions.map(transaction => {
               const amountValue = Number(transaction.amount) || 0;
               const sourceLabel =
                 transaction.sourceType === 'group_expense'
@@ -429,6 +528,19 @@ export const TransactionsScreen = ({
                 </article>
               );
             })}
+
+            {hasMore && (
+              <div className="load-more">
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Cargando...' : 'Cargar más'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </SectionCard>

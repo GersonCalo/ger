@@ -88,10 +88,15 @@ function App() {
           onDeleteTransaction={financeApp.deleteTransaction}
           onCreateCategory={financeApp.createCategory}
           onRefresh={financeApp.refreshTransactions}
+          onApplyFilters={financeApp.applyTransactionFilters}
+          onLoadMore={financeApp.loadMoreTransactions}
           summary={financeApp.dashboardSummary}
           transactions={financeApp.transactions}
           user={financeApp.user!}
           categories={financeApp.categories}
+          filters={financeApp.transactionFilters}
+          hasMore={financeApp.txHasMore}
+          loadingMore={financeApp.txLoadingMore}
         />
       ) : null}
 

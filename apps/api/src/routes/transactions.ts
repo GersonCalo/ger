@@ -8,6 +8,69 @@ import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
 
 export const transactionsRouter = Router();
 
+const GROUP_SOURCE_TYPES = ['group_expense', 'group_settlement_paid', 'group_settlement_received'] as const;
+
+const CURSOR_SCHEMA = z.object({
+  occurredAt: z.string().datetime(),
+  id: z.string().uuid(),
+});
+
+const encodeCursor = (occurredAt: Date | string, id: string): string => {
+  const raw = JSON.stringify({
+    occurredAt: typeof occurredAt === 'string' ? occurredAt : occurredAt.toISOString(),
+    id,
+  });
+  return Buffer.from(raw).toString('base64');
+};
+
+const decodeCursor = (cursor: string): { occurredAt: Date; id: string } | null => {
+  try {
+    const raw = Buffer.from(cursor, 'base64').toString('utf-8');
+    const parsed = CURSOR_SCHEMA.parse(JSON.parse(raw));
+    const date = new Date(parsed.occurredAt);
+    if (Number.isNaN(date.getTime())) return null;
+    return { occurredAt: date, id: parsed.id };
+  } catch {
+    return null;
+  }
+};
+
+const LIST_QUERY_SCHEMA = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  type: z.enum(['income', 'expense']).optional(),
+  origin: z.enum(['manual', 'group']).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const TX_SELECT = {
+  id: true,
+  type: true,
+  amount: true,
+  categoryId: true,
+  category: {
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      color: true,
+      icon: true,
+    },
+  },
+  occurredAt: true,
+  note: true,
+  sourceType: true,
+  sourceRefId: true,
+  locked: true,
+  groupId: true,
+  group: {
+    select: {
+      name: true,
+    },
+  },
+} as const;
+
 const serializeTransaction = (transaction: {
   id: string;
   type: string;
@@ -42,44 +105,82 @@ const serializeTransaction = (transaction: {
 
 transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
-  const limit = _req.query.limit === 'all' ? undefined : 50;
+
+  const parsed = LIST_QUERY_SCHEMA.safeParse(_req.query);
+  if (!parsed.success) {
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Parámetros de consulta inválidos', zodIssuesDetails(parsed.error));
+  }
+
+  const { from, to, type, origin, cursor, limit } = parsed.data;
 
   await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
 
-  const transactions = await prisma.personalTransaction.findMany({
-    where: { userId },
-    orderBy: { occurredAt: 'desc' },
-    take: limit,
-    select: {
-      id: true,
-      type: true,
-      amount: true,
-      categoryId: true,
-      category: {
-        select: {
-          id: true,
-          name: true,
-          type: true,
-          color: true,
-          icon: true,
-        },
+  const where: Record<string, unknown> = { userId };
+
+  if (from) {
+    const existing = (where.occurredAt as Record<string, Date> | undefined) ?? {};
+    where.occurredAt = { ...existing, gte: new Date(from) };
+  }
+
+  if (to) {
+    const existing = (where.occurredAt as Record<string, Date> | undefined) ?? {};
+    where.occurredAt = { ...existing, lte: new Date(to) };
+  }
+
+  if (type) {
+    where.type = type;
+  }
+
+  if (origin) {
+    if (origin === 'manual') {
+      where.sourceType = 'manual';
+    } else if (origin === 'group') {
+      where.sourceType = { in: [...GROUP_SOURCE_TYPES] };
+    }
+  }
+
+  const cursorClause: Record<string, unknown> = {};
+
+  if (cursor) {
+    const decoded = decodeCursor(cursor);
+    if (!decoded) {
+      return sendError(res, 400, 'INVALID_CURSOR', 'Cursor inválido');
+    }
+
+    cursorClause.OR = [
+      { occurredAt: { lt: decoded.occurredAt } },
+      {
+        occurredAt: decoded.occurredAt,
+        id: { lt: decoded.id },
       },
-      occurredAt: true,
-      note: true,
-      sourceType: true,
-      sourceRefId: true,
-      locked: true,
-      groupId: true,
-      group: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    ];
+  }
+
+  const finalWhere = {
+    AND: [where, cursorClause],
+  };
+
+  const rows = await prisma.personalTransaction.findMany({
+    where: finalWhere,
+    orderBy: [
+      { occurredAt: 'desc' },
+      { id: 'desc' },
+    ],
+    take: limit + 1,
+    select: TX_SELECT,
   });
 
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const lastItem = items.length > 0 ? items[items.length - 1] : null;
+  const nextCursor = hasMore && lastItem
+    ? encodeCursor(lastItem.occurredAt, lastItem.id)
+    : null;
+
   return res.json({
-    transactions: transactions.map(serializeTransaction),
+    transactions: items.map(serializeTransaction),
+    nextCursor,
+    hasMore,
   });
 });
 

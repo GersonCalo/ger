@@ -12,6 +12,8 @@ import type {
   GroupSettlement,
   GroupSummary,
   Transaction,
+  TransactionListFilters,
+  TransactionListResponse,
 } from '@/types';
 
 const API_URL: string = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_URL || 'http://localhost:8080';
@@ -72,16 +74,22 @@ export const api = {
     const data = await parseJson<{ user: AuthUser }>(response);
     return data.user;
   },
-  async transactions(token: string, options?: { limit?: 'all' }) {
-    const url = options?.limit === 'all'
-      ? `${API_BASE}/transactions?limit=all`
-      : `${API_BASE}/transactions`;
+  async transactions(token: string, filters?: TransactionListFilters) {
+    const params = new URLSearchParams();
+    if (filters?.from) params.set('from', filters.from);
+    if (filters?.to) params.set('to', filters.to);
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.origin) params.set('origin', filters.origin);
+    if (filters?.cursor) params.set('cursor', filters.cursor);
+    if (filters?.limit !== undefined) params.set('limit', String(filters.limit));
+
+    const qs = params.toString();
+    const url = `${API_BASE}/transactions${qs ? `?${qs}` : ''}`;
     const response = await fetch(url, {
       headers: createHeaders(token),
     });
 
-    const data = await parseJson<{ transactions: Transaction[] }>(response);
-    return data.transactions;
+    return parseJson<TransactionListResponse>(response);
   },
   async createTransaction(
     token: string,
