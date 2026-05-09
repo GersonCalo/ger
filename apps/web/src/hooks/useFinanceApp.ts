@@ -19,6 +19,12 @@ import type {
 
 const VALID_TABS: AppTab[] = ['home', 'transactions', 'groups', 'profile'];
 
+const generateIdempotencyKey = (): string => {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+};
+
 const getInitialTab = (): AppTab => {
   const hash = window.location.hash.replace('#', '') as AppTab;
   return VALID_TABS.includes(hash) ? hash : 'home';
@@ -224,45 +230,69 @@ export const useFinanceApp = () => {
       setCategoriesBusy(true);
 
       try {
-        const [nextUser, nextTransactionsRes, nextGroups, nextBalance, nextCategories] = await Promise.all([
-          api.me(sessionToken),
+        // Auth check first — only this one should trigger logout on failure
+        const nextUser = await api.me(sessionToken);
+        // @ts-ignore
+        setUser(nextUser.user || nextUser);
+
+        // Load remaining data in parallel with individual fallbacks
+        const results = await Promise.allSettled([
           api.transactions(sessionToken),
           api.groups(sessionToken),
           api.balance(sessionToken),
           api.getCategories(sessionToken).then((res: any) => res.categories || res).catch(() => []),
         ]);
 
-        // @ts-ignore
-        setUser(nextUser.user || nextUser);
-        setTransactions(nextTransactionsRes.transactions);
-        setTxNextCursor(nextTransactionsRes.nextCursor);
-        setTxHasMore(nextTransactionsRes.hasMore);
-        setGroups(nextGroups);
-        setBalanceSummary(nextBalance);
-        setCategories(nextCategories);
+        const [txRes, groupsRes, balanceRes, categoriesRes] = results;
 
-        const firstGroupId = nextGroups[0]?.id ?? null;
-        setSelectedGroupId(firstGroupId);
+        if (txRes.status === 'fulfilled') {
+          setTransactions(txRes.value.transactions);
+          setTxNextCursor(txRes.value.nextCursor);
+          setTxHasMore(txRes.value.hasMore);
+        }
 
-        if (firstGroupId) {
-          try {
-            const firstGroup = nextGroups.find((group: GroupSummary) => group.id === firstGroupId);
-            // @ts-ignore
-            const currentMembership = firstGroup?.members.find((member: { userId: string | null; role: string }) => member.userId === (nextUser.user?.id || nextUser.id));
-            const shouldLoadJoinCode = currentMembership?.role === 'admin';
-            const [payload, joinCodePayload] = await Promise.all([
-              api.groupBalances(sessionToken, firstGroupId),
-              shouldLoadJoinCode ? api.groupJoinCode(sessionToken, firstGroupId).catch(() => null) : Promise.resolve(null),
-            ]);
-            setSelectedGroupData(payload);
-            setSelectedGroupJoinCode(joinCodePayload?.joinCode || null);
-          } catch {
+        if (groupsRes.status === 'fulfilled') {
+          setGroups(groupsRes.value);
+          const firstGroupId = groupsRes.value[0]?.id ?? null;
+          setSelectedGroupId(firstGroupId);
+
+          if (firstGroupId) {
+            try {
+              const firstGroup = groupsRes.value.find((group: GroupSummary) => group.id === firstGroupId);
+              // @ts-ignore
+              const currentMembership = firstGroup?.members.find((member: { userId: string | null; role: string }) => member.userId === (nextUser.user?.id || nextUser.id));
+              const shouldLoadJoinCode = currentMembership?.role === 'admin';
+              const [payload, joinCodePayload] = await Promise.all([
+                api.groupBalances(sessionToken, firstGroupId),
+                shouldLoadJoinCode ? api.groupJoinCode(sessionToken, firstGroupId).catch(() => null) : Promise.resolve(null),
+              ]);
+              setSelectedGroupData(payload);
+              setSelectedGroupJoinCode(joinCodePayload?.joinCode || null);
+            } catch {
+              setSelectedGroupData(null);
+              setSelectedGroupJoinCode(null);
+            }
+          } else {
             setSelectedGroupData(null);
             setSelectedGroupJoinCode(null);
           }
         } else {
+          setGroups([]);
+          setSelectedGroupId(null);
           setSelectedGroupData(null);
           setSelectedGroupJoinCode(null);
+        }
+
+        if (balanceRes.status === 'fulfilled') {
+          setBalanceSummary(balanceRes.value);
+        } else {
+          setBalanceSummary(EMPTY_BALANCE_SUMMARY);
+        }
+
+        if (categoriesRes.status === 'fulfilled') {
+          setCategories(categoriesRes.value);
+        } else {
+          setCategories([]);
         }
       } catch {
         logout();
@@ -701,9 +731,11 @@ export const useFinanceApp = () => {
       setGroupsBusy(true);
       setGroupsError(null);
 
+      const idempotencyKey = generateIdempotencyKey();
+
       try {
         const { groupId, ...rest } = input;
-        await api.createGroupExpense(token, groupId, rest);
+        await api.createGroupExpense(token, groupId, { ...rest, idempotencyKey } as any);
         await Promise.all([
           refreshSelectedGroup(groupId, { silent: true }),
           refreshBalance({ silent: true }),
@@ -829,12 +861,15 @@ export const useFinanceApp = () => {
       setGroupsBusy(true);
       setGroupsError(null);
 
+      const idempotencyKey = generateIdempotencyKey();
+
       try {
         await api.createSettlement(token, input.groupId, {
           fromMemberId: input.fromMemberId,
           toMemberId: input.toMemberId,
           amount: input.amount,
           occurredAt: new Date().toISOString(),
+          idempotencyKey,
         });
 
         await Promise.all([

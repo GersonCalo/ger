@@ -5,8 +5,17 @@ import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { sendError, zodIssuesDetails } from '../lib/apiError.js';
 import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
+import { calculateUserBalance } from '../lib/userBalance.js';
 
 export const transactionsRouter = Router();
+
+transactionsRouter.get('/balance', requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
+  const balance = await calculateUserBalance(userId);
+
+  return res.json(balance);
+});
 
 const GROUP_SOURCE_TYPES = ['group_expense', 'group_settlement_paid', 'group_settlement_received'] as const;
 

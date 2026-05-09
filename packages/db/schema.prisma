@@ -158,6 +158,20 @@ model GroupSettlement {
   @@index([toMemberId])
 }
 
+model IdempotencyRequest {
+  id              String   @id @default(uuid())
+  userId          String
+  endpoint        String
+  idempotencyKey  String
+  requestHash     String
+  responseStatus  Int
+  responseBody    Json
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, endpoint, idempotencyKey])
+  @@index([userId, endpoint])
+}
+
 model PushSubscription {
   id         String   @id @default(uuid())
   userId     String

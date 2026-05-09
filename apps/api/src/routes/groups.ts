@@ -14,6 +14,13 @@ import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { sendPushToUser } from '../lib/push.js';
 import { sendError, zodIssuesDetails, type ApiErrorBody } from '../lib/apiError.js';
+import {
+  checkIdempotency,
+  saveIdempotencyRecord,
+  handleIdempotencyConflict,
+  returnExistingIdempotentResponse,
+  hashPayload,
+} from '../lib/idempotency.js';
 
 export const groupsRouter = Router();
 
@@ -91,6 +98,7 @@ const expenseSchema = z
     occurredAt: z.string().datetime().optional(),
     splitMethod: z.enum(['equal', 'manual']),
     splits: z.array(manualSplitSchema).optional(),
+    idempotencyKey: z.string().trim().min(1).max(128),
   })
   .superRefine((value, ctx) => {
     if (value.splitMethod === 'manual' && (!value.splits || value.splits.length === 0)) {
@@ -107,6 +115,7 @@ const settlementSchema = z.object({
   toMemberId: z.string().uuid(),
   amount: positiveAmountSchema,
   occurredAt: z.string().datetime().optional(),
+  idempotencyKey: z.string().trim().min(1).max(128),
 });
 
 const updateSettlementSchema = z.object({
@@ -983,6 +992,33 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     }
   }
 
+  const canonicalPayload = {
+    groupId: access.group.id,
+    payerMemberId: parsed.data.payerMemberId,
+    amount,
+    description: parsed.data.description?.trim() || null,
+    categoryId: parsed.data.categoryId || null,
+    occurredAt: occurredAt.toISOString(),
+    splitMethod: parsed.data.splitMethod,
+    splits: splitResult.splits!.map((s: { memberId: string; shareAmount: number; shareWeight: number | null }) => ({
+      memberId: s.memberId,
+      shareAmount: s.shareAmount,
+      shareWeight: s.shareWeight,
+    })).sort((a: { memberId: string }, b: { memberId: string }) => a.memberId.localeCompare(b.memberId)),
+  };
+  const requestHash = hashPayload(canonicalPayload);
+  const endpoint = 'groups.expenses.create';
+
+  const idempotencyCheck = await checkIdempotency(userId, endpoint, parsed.data.idempotencyKey, requestHash);
+
+  if (idempotencyCheck.action === 'return-existing') {
+    return returnExistingIdempotentResponse(res, idempotencyCheck.existing);
+  }
+
+  if (idempotencyCheck.action === 'conflict') {
+    return handleIdempotencyConflict(res);
+  }
+
   const expense = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const created = await tx.groupExpense.create({
       data: {
@@ -1031,6 +1067,9 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     return created;
   });
 
+  const responseBody = { expense: serializeGroupExpense(expense) };
+  await saveIdempotencyRecord(userId, endpoint, parsed.data.idempotencyKey, requestHash, 201, responseBody);
+
   const creatorMemberId = requesterMember.id;
   const allGroupMembers = await prisma.groupMember.findMany({
     where: { groupId: access.group.id },
@@ -1054,7 +1093,7 @@ groupsRouter.post('/groups/:id/expenses', requireAuth, async (req, res) => {
     }).catch(() => {});
   }
 
-  return res.status(201).json({ expense: serializeGroupExpense(expense) });
+  return res.status(201).json(responseBody);
 });
 
 groupsRouter.put('/groups/:id/expenses/:eid', requireAuth, async (req, res) => {
@@ -1507,6 +1546,26 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     return sendError(res, 400, 'GROUP_SETTLEMENT_INVALID_AMOUNT', `El monto supera lo pendiente entre ambos miembros. Máximo liquidable: ${maxAmount.toFixed(2)}`);
   }
 
+  const canonicalPayload = {
+    groupId: access.group.id,
+    fromMemberId: parsed.data.fromMemberId,
+    toMemberId: parsed.data.toMemberId,
+    amount,
+    occurredAt: occurredAt.toISOString(),
+  };
+  const requestHash = hashPayload(canonicalPayload);
+  const endpoint = 'groups.settlements.create';
+
+  const idempotencyCheck = await checkIdempotency(userId, endpoint, parsed.data.idempotencyKey, requestHash);
+
+  if (idempotencyCheck.action === 'return-existing') {
+    return returnExistingIdempotentResponse(res, idempotencyCheck.existing);
+  }
+
+  if (idempotencyCheck.action === 'conflict') {
+    return handleIdempotencyConflict(res);
+  }
+
   const settlement = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const created = await tx.groupSettlement.create({
       data: {
@@ -1531,6 +1590,9 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     return created;
   });
 
+  const responseBody = { settlement: serializeGroupSettlement(settlement) };
+  await saveIdempotencyRecord(userId, endpoint, parsed.data.idempotencyKey, requestHash, 201, responseBody);
+
   const toMember = await prisma.groupMember.findUnique({
     where: { id: parsed.data.toMemberId },
     select: { userId: true, displayName: true },
@@ -1552,7 +1614,7 @@ groupsRouter.post('/groups/:id/settlements', requireAuth, async (req, res) => {
     }).catch(() => {});
   }
 
-  return res.status(201).json({ settlement: serializeGroupSettlement(settlement) });
+  return res.status(201).json(responseBody);
 });
 
 groupsRouter.put('/groups/:id/settlements/:sid', requireAuth, async (req, res) => {

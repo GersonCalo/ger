@@ -258,6 +258,7 @@ export const api = {
       splitMethod: 'equal' | 'manual' | 'weights';
       splits?: GroupExpenseSplitInput[];
       occurredAt: string;
+      idempotencyKey: string;
     }
   ) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/expenses`, {
@@ -352,7 +353,7 @@ export const api = {
   async createSettlement(
     token: string,
     groupId: string,
-    input: { fromMemberId: string; toMemberId: string; amount: number; occurredAt: string }
+    input: { fromMemberId: string; toMemberId: string; amount: number; occurredAt: string; idempotencyKey: string }
   ) {
     const response = await fetch(`${API_BASE}/groups/${groupId}/settlements`, {
       method: 'POST',
