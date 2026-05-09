@@ -461,6 +461,48 @@ export const useFinanceApp = () => {
     [token, refreshBalance]
   );
 
+  const updateTransaction = useCallback(
+    async (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => {
+      if (!token) return;
+      setDataBusy(true);
+      setTransactionError(null);
+      try {
+        await api.updateTransaction(token, input.id, {
+          type: input.type,
+          amount: input.amount,
+          categoryId: input.categoryId,
+          note: input.note,
+          occurredAt: input.occurredAt,
+        });
+        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
+      } catch (error: any) {
+        setTransactionError(error.message || 'Error actualizando transacción');
+        throw error;
+      } finally {
+        setDataBusy(false);
+      }
+    },
+    [token, refreshBalance, refreshTransactions]
+  );
+
+  const deleteTransaction = useCallback(
+    async (id: string) => {
+      if (!token) return;
+      setDataBusy(true);
+      setTransactionError(null);
+      try {
+        await api.deleteTransaction(token, id);
+        await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true, all: true })]);
+      } catch (error: any) {
+        setTransactionError(error.message || 'Error eliminando transacción');
+        throw error;
+      } finally {
+        setDataBusy(false);
+      }
+    },
+    [token, refreshBalance, refreshTransactions]
+  );
+
   const createCategory = useCallback(
     async (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => {
       if (!token) throw new Error('No auth');
@@ -812,6 +854,8 @@ export const useFinanceApp = () => {
     deleteCategory,
     deleteGroupCategory,
     deleteGroupMember,
+    deleteTransaction,
+    updateTransaction,
     groups,
     groupsBusy,
     groupsError,

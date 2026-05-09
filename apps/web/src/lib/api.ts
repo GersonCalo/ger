@@ -354,6 +354,32 @@ export const api = {
     const data = await parseJson<{ settlement: GroupSettlement }>(response);
     return data.settlement;
   },
+  async updateTransaction(
+    token: string,
+    id: string,
+    input: { type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }
+  ) {
+    const response = await fetch(`${API_BASE}/transactions/${id}`, {
+      method: 'PATCH',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ transaction: Transaction }>(response);
+    return data.transaction;
+  },
+  async deleteTransaction(token: string, id: string) {
+    const response = await fetch(`${API_BASE}/transactions/${id}`, {
+      method: 'DELETE',
+      headers: createHeaders(token),
+    });
+
+    if (response.status === 204) {
+      return;
+    }
+
+    return parseJson<{ message: string }>(response);
+  },
   async updateSettlementStatus(
     token: string,
     groupId: string,

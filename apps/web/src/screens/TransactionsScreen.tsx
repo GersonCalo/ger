@@ -9,6 +9,8 @@ type TransactionsScreenProps = {
   busy: boolean;
   error: string | null;
   onCreateTransaction: (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => Promise<void>;
+  onUpdateTransaction: (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => Promise<void>;
+  onDeleteTransaction: (id: string) => Promise<void>;
   onCreateCategory: (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
   onRefresh: () => Promise<void>;
   summary: {
@@ -25,6 +27,8 @@ export const TransactionsScreen = ({
   busy,
   error,
   onCreateTransaction,
+  onUpdateTransaction,
+  onDeleteTransaction,
   onCreateCategory,
   onRefresh,
   summary,
@@ -43,6 +47,26 @@ export const TransactionsScreen = ({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editType, setEditType] = useState<'income' | 'expense'>('expense');
+  const [editAmount, setEditAmount] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editOccurredAt, setEditOccurredAt] = useState('');
+
+  const startEditing = (transaction: Transaction) => {
+    setEditingId(transaction.id);
+    setEditType(transaction.type);
+    setEditAmount(transaction.amount);
+    setEditCategoryId(transaction.categoryId || '');
+    setEditNote(transaction.note || '');
+    setEditOccurredAt(new Date(transaction.occurredAt).toISOString().slice(0, 16));
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+  };
 
   const successTimerRef = useRef<number | null>(null);
 
@@ -261,30 +285,147 @@ export const TransactionsScreen = ({
                     : 'Manual';
 
               return (
-                <article key={transaction.id} className="list-row list-row--stacked">
-                  <div className="list-row__content">
-                    <div className="list-row__title">
-                      {transaction.category ? (
-                        <span className="category-tag">
-                          {transaction.category.icon ? `${transaction.category.icon} ` : ''}
-                          {transaction.category.name}
-                        </span>
-                      ) : (
-                        transaction.type === 'income' ? 'Ingreso' : 'Gasto'
-                      )}
-                    </div>
-                    <div className="list-row__meta">
-                      {formatDate(transaction.occurredAt)} · {sourceLabel}
-                    </div>
-                    {transaction.note ? <div className="list-row__note">{transaction.note}</div> : null}
-                  </div>
-                  <div className="list-actions">
-                    {transaction.locked ? <div className="chip">Grupo</div> : null}
-                    <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}
-                      {formatMoney(amountValue, user.currency)}
-                    </div>
-                  </div>
+                <article key={transaction.id} className={`list-row list-row--stacked ${editingId === transaction.id ? 'list-row--editing' : ''}`}>
+                  {editingId === transaction.id ? (
+                    <form
+                      className="form-stack form-stack--inline"
+                      onSubmit={async event => {
+                        event.preventDefault();
+                        try {
+                          await onUpdateTransaction({
+                            id: transaction.id,
+                            type: editType,
+                            amount: Number(editAmount),
+                            categoryId: editCategoryId || null,
+                            note: editNote || null,
+                            occurredAt: new Date(editOccurredAt).toISOString(),
+                          });
+                          cancelEditing();
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : 'Error al actualizar');
+                        }
+                      }}
+                    >
+                      <div className="segmented-control">
+                        <button
+                          type="button"
+                          className={`segmented-control__item ${editType === 'expense' ? 'segmented-control__item--active' : ''}`}
+                          onClick={() => setEditType('expense')}
+                        >
+                          Gasto
+                        </button>
+                        <button
+                          type="button"
+                          className={`segmented-control__item ${editType === 'income' ? 'segmented-control__item--active' : ''}`}
+                          onClick={() => setEditType('income')}
+                        >
+                          Ingreso
+                        </button>
+                      </div>
+                      <label className="field field--amount">
+                        <span className="field__label">Monto</span>
+                        <input
+                          className="field__input field__input--amount"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={editAmount}
+                          onChange={e => setEditAmount(e.target.value)}
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Categoría</span>
+                        <select
+                          className="field__input"
+                          value={editCategoryId}
+                          onChange={e => setEditCategoryId(e.target.value)}
+                        >
+                          <option value="">Sin categoría</option>
+                          {categories
+                            .filter(c => c.type === editType && c.groupId === null)
+                            .map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.icon ? `${c.icon} ` : ''}{c.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Nota</span>
+                        <input
+                          className="field__input"
+                          type="text"
+                          placeholder="Opcional"
+                          value={editNote}
+                          onChange={e => setEditNote(e.target.value)}
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Fecha</span>
+                        <input
+                          className="field__input"
+                          type="datetime-local"
+                          value={editOccurredAt}
+                          onChange={e => setEditOccurredAt(e.target.value)}
+                        />
+                      </label>
+                      <div className="inline-actions">
+                        <button type="submit" className="button button--primary button--small">Guardar</button>
+                        <button type="button" className="button button--ghost button--small" onClick={cancelEditing}>Cancelar</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="list-row__content">
+                        <div className="list-row__title">
+                          {transaction.category ? (
+                            <span className="category-tag">
+                              {transaction.category.icon ? `${transaction.category.icon} ` : ''}
+                              {transaction.category.name}
+                            </span>
+                          ) : (
+                            transaction.type === 'income' ? 'Ingreso' : 'Gasto'
+                          )}
+                        </div>
+                        <div className="list-row__meta">
+                          {formatDate(transaction.occurredAt)} · {sourceLabel}
+                        </div>
+                        {transaction.note ? <div className="list-row__note">{transaction.note}</div> : null}
+                      </div>
+                      <div className="list-actions">
+                        {transaction.locked ? <div className="chip">Grupo</div> : (
+                          <>
+                            <button
+                              type="button"
+                              className="button button--ghost button--small"
+                              onClick={() => startEditing(transaction)}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="button button--ghost button--small button--danger"
+                              onClick={async () => {
+                                if (!confirm('¿Eliminar este movimiento?')) return;
+                                try {
+                                  await onDeleteTransaction(transaction.id);
+                                } catch (err) {
+                                  alert(err instanceof Error ? err.message : 'Error al eliminar');
+                                }
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          </>
+                        )}
+                        <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
+                          {transaction.type === 'income' ? '+' : '-'}
+                          {formatMoney(amountValue, user.currency)}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </article>
               );
             })}

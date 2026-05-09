@@ -84,6 +84,8 @@ function App() {
           busy={financeApp.dataBusy}
           error={financeApp.transactionError}
           onCreateTransaction={financeApp.createTransaction}
+          onUpdateTransaction={financeApp.updateTransaction}
+          onDeleteTransaction={financeApp.deleteTransaction}
           onCreateCategory={financeApp.createCategory}
           onRefresh={financeApp.refreshTransactions}
           summary={financeApp.dashboardSummary}
