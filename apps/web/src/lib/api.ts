@@ -42,6 +42,14 @@ const createHeaders = (token?: string) => {
   return headers;
 };
 
+const createCsvHeaders = (token?: string) => {
+  const headers = new Headers();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return headers;
+};
+
 export const api = {
   baseUrl: API_BASE,
   async health() {
@@ -90,6 +98,38 @@ export const api = {
     });
 
     return parseJson<TransactionListResponse>(response);
+  },
+  async exportTransactionsCsv(token: string, filters?: TransactionListFilters) {
+    const params = new URLSearchParams();
+    if (filters?.from) params.set('from', filters.from);
+    if (filters?.to) params.set('to', filters.to);
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.origin) params.set('origin', filters.origin);
+
+    const qs = params.toString();
+    const url = `${API_BASE}/transactions/export.csv${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, {
+      headers: createCsvHeaders(token),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let message = `Error ${response.status}`;
+      try {
+        const payload = JSON.parse(text);
+        message = payload?.error?.message ?? message;
+      } catch {
+        // not JSON
+      }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="([^"]+)"/);
+    const filename = filenameMatch ? filenameMatch[1] : 'movimientos.csv';
+
+    return { blob, filename };
   },
   async createTransaction(
     token: string,

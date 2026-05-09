@@ -193,6 +193,105 @@ transactionsRouter.get('/transactions', requireAuth, async (_req, res) => {
   });
 });
 
+const EXPORT_QUERY_SCHEMA = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  type: z.enum(['income', 'expense']).optional(),
+  origin: z.enum(['manual', 'group']).optional(),
+});
+
+const escapeCsvField = (value: string | null): string => {
+  if (value === null || value === '') return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
+
+const mapOrigin = (sourceType: string | null): string => {
+  if (sourceType === 'manual') return 'manual';
+  return 'group';
+};
+
+transactionsRouter.get('/transactions/export.csv', requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+
+  const parsed = EXPORT_QUERY_SCHEMA.safeParse(_req.query);
+  if (!parsed.success) {
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Parámetros de consulta inválidos', zodIssuesDetails(parsed.error));
+  }
+
+  const { from, to, type, origin } = parsed.data;
+
+  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
+
+  const where: Record<string, unknown> = { userId };
+
+  if (from) {
+    where.occurredAt = { ...((where.occurredAt as Record<string, Date> | undefined) ?? {}), gte: new Date(from) };
+  }
+
+  if (to) {
+    where.occurredAt = { ...((where.occurredAt as Record<string, Date> | undefined) ?? {}), lte: new Date(to) };
+  }
+
+  if (type) {
+    where.type = type;
+  }
+
+  if (origin) {
+    if (origin === 'manual') {
+      where.sourceType = 'manual';
+    } else if (origin === 'group') {
+      where.sourceType = { in: [...GROUP_SOURCE_TYPES] };
+    }
+  }
+
+  const rows = await prisma.personalTransaction.findMany({
+    where,
+    orderBy: [
+      { occurredAt: 'desc' },
+      { id: 'desc' },
+    ],
+    select: {
+      occurredAt: true,
+      type: true,
+      amount: true,
+      sourceType: true,
+      note: true,
+      group: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  const header = 'fecha,tipo,monto,origen,descripcion,grupo';
+
+  const csvRows = rows.map(row => {
+    const date = new Date(row.occurredAt).toISOString();
+    const amount = row.amount.toString();
+    const originValue = mapOrigin(row.sourceType);
+    const description = escapeCsvField(row.note);
+    const groupName = escapeCsvField(row.group?.name ?? null);
+
+    return `${date},${row.type},${amount},${originValue},${description},${groupName}`;
+  });
+
+  const bom = '\uFEFF';
+  const csvContent = `${bom}${header}\n${csvRows.join('\n')}\n`;
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const filename = `movimientos-${dateStr}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+  return res.send(csvContent);
+});
+
 transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
 

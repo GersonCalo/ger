@@ -15,6 +15,7 @@ type TransactionsScreenProps = {
   onRefresh: () => Promise<void>;
   onApplyFilters: (filters: TransactionListFilters) => Promise<void>;
   onLoadMore: () => Promise<void>;
+  onExportCsv: () => Promise<void>;
   summary: {
     balance: number;
     income: number;
@@ -38,6 +39,7 @@ export const TransactionsScreen = ({
   onRefresh,
   onApplyFilters,
   onLoadMore,
+  onExportCsv,
   summary,
   transactions,
   user,
@@ -365,6 +367,17 @@ export const TransactionsScreen = ({
               </button>
             )}
           </div>
+        </div>
+
+        <div className="export-bar">
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={onExportCsv}
+            disabled={busy}
+          >
+            Exportar CSV
+          </button>
         </div>
 
         {transactions.length === 0 ? (

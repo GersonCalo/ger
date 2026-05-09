@@ -90,6 +90,7 @@ function App() {
           onRefresh={financeApp.refreshTransactions}
           onApplyFilters={financeApp.applyTransactionFilters}
           onLoadMore={financeApp.loadMoreTransactions}
+          onExportCsv={financeApp.exportTransactionsCsv}
           summary={financeApp.dashboardSummary}
           transactions={financeApp.transactions}
           user={financeApp.user!}

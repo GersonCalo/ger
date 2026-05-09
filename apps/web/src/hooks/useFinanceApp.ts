@@ -378,6 +378,23 @@ export const useFinanceApp = () => {
     }
   }, [token, txNextCursor, txLoadingMore, transactionFilters]);
 
+  const exportTransactionsCsv = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { blob, filename } = await api.exportTransactionsCsv(token, transactionFilters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      setTransactionError(error.message || 'Error exportando movimientos');
+    }
+  }, [token, transactionFilters]);
+
   const runAutomaticRefresh = useCallback(async () => {
     if (!token || booting || authBusy || dataBusy || groupsBusy) return;
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
@@ -942,6 +959,7 @@ export const useFinanceApp = () => {
     deleteGroupMember,
     deleteTransaction,
     updateTransaction,
+    exportTransactionsCsv,
     groups,
     groupsBusy,
     groupsError,
