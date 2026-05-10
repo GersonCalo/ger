@@ -1,13 +1,10 @@
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppTab } from '@/types';
 
-type BottomNavProps = {
-  activeTab: AppTab;
-  onChange: (tab: AppTab) => void;
-};
-
-const tabs: Array<{ id: AppTab; label: string; icon: JSX.Element }> = [
+const tabs: Array<{ id: AppTab; path: string; label: string; icon: JSX.Element }> = [
   {
     id: 'home',
+    path: '/',
     label: 'Inicio',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -17,6 +14,7 @@ const tabs: Array<{ id: AppTab; label: string; icon: JSX.Element }> = [
   },
   {
     id: 'transactions',
+    path: '/transactions',
     label: 'Movs',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -26,6 +24,7 @@ const tabs: Array<{ id: AppTab; label: string; icon: JSX.Element }> = [
   },
   {
     id: 'groups',
+    path: '/groups',
     label: 'Grupos',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -35,6 +34,7 @@ const tabs: Array<{ id: AppTab; label: string; icon: JSX.Element }> = [
   },
   {
     id: 'profile',
+    path: '/profile',
     label: 'Perfil',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -44,19 +44,33 @@ const tabs: Array<{ id: AppTab; label: string; icon: JSX.Element }> = [
   },
 ];
 
-export const BottomNav = ({ activeTab, onChange }: BottomNavProps) => (
-  <nav className="bottom-nav" aria-label="Navegación principal">
-    {tabs.map(tab => (
-      <button
-        key={tab.id}
-        type="button"
-        className={`bottom-nav__item ${tab.id === activeTab ? 'bottom-nav__item--active' : ''}`}
-        onClick={() => onChange(tab.id)}
-        aria-current={tab.id === activeTab ? 'page' : undefined}
-      >
-        <span className="bottom-nav__icon">{tab.icon}</span>
-        <span className="bottom-nav__label">{tab.label}</span>
-      </button>
-    ))}
-  </nav>
-);
+const getActiveTab = (pathname: string): AppTab => {
+  if (pathname === '/' || pathname === '') return 'home';
+  if (pathname === '/transactions') return 'transactions';
+  if (pathname.startsWith('/groups')) return 'groups';
+  if (pathname === '/profile') return 'profile';
+  return 'home';
+};
+
+export const BottomNav = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = getActiveTab(location.pathname);
+
+  return (
+    <nav className="bottom-nav" aria-label="Navegación principal">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          type="button"
+          className={`bottom-nav__item ${tab.id === activeTab ? 'bottom-nav__item--active' : ''}`}
+          onClick={() => navigate(tab.path)}
+          aria-current={tab.id === activeTab ? 'page' : undefined}
+        >
+          <span className="bottom-nav__icon">{tab.icon}</span>
+          <span className="bottom-nav__label">{tab.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+};

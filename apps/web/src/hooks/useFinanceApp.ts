@@ -9,7 +9,7 @@ import { useGroups } from '@/hooks/useGroups';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useTransactions } from '@/hooks/useTransactions';
 
-export const useFinanceApp = () => {
+const useFinanceAppImpl = () => {
   const navigation = useNavigation();
   const auth = useAuth();
   const transactions = useTransactions({ token: auth.token });
@@ -52,3 +52,7 @@ export const useFinanceApp = () => {
 
   return { activeTab: navigation.activeTab, setActiveTab: navigation.setActiveTab, ...auth, ...transactions, ...groups, ...categories, ...pushThemePublic, logout };
 };
+
+export type UseFinanceAppReturn = ReturnType<typeof useFinanceAppImpl>;
+
+export const useFinanceApp = useFinanceAppImpl;

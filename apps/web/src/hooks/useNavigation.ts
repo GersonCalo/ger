@@ -1,38 +1,36 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppTab } from '@/types';
 
-const VALID_TABS: AppTab[] = ['home', 'transactions', 'groups', 'profile'];
-
-const getInitialTab = (): AppTab => {
-  const hash = window.location.hash.replace('#', '') as AppTab;
-  return VALID_TABS.includes(hash) ? hash : 'home';
+const pathToTab = (pathname: string): AppTab => {
+  if (pathname === '/' || pathname === '') return 'home';
+  if (pathname === '/transactions') return 'transactions';
+  if (pathname.startsWith('/groups')) return 'groups';
+  if (pathname === '/profile') return 'profile';
+  return 'home';
 };
 
-const setHash = (tab: AppTab) => {
-  const next = `#${tab}`;
-  if (window.location.hash !== next) {
-    window.location.hash = next;
+const tabToPath = (tab: AppTab): string => {
+  switch (tab) {
+    case 'home': return '/';
+    case 'transactions': return '/transactions';
+    case 'groups': return '/groups';
+    case 'profile': return '/profile';
   }
 };
 
 export const useNavigation = () => {
-  const [activeTab, setActiveTabState] = useState<AppTab>(getInitialTab);
-
-  useEffect(() => {
-    const onHashChange = () => setActiveTabState(getInitialTab());
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = pathToTab(location.pathname);
 
   const setActiveTab = useCallback((tab: AppTab) => {
-    setActiveTabState(tab);
-    setHash(tab);
-  }, []);
+    navigate(tabToPath(tab));
+  }, [navigate]);
 
   const resetToHome = useCallback(() => {
-    setActiveTabState('home');
-    setHash('home');
-  }, []);
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   return { activeTab, setActiveTab, resetToHome };
 };

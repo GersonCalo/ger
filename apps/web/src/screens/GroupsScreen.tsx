@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
@@ -48,6 +49,8 @@ type GroupsScreenProps = {
   selectedGroupId: string | null;
   selectedGroupJoinCode: string | null;
   user: AuthUser;
+  routeGroupId?: string | null;
+  onBackToList?: () => void;
 };
 
 const toCents = (amount: number) => Math.round(amount * 100);
@@ -91,7 +94,10 @@ export const GroupsScreen = ({
   selectedGroupJoinCode,
   user,
   categories = [],
+  routeGroupId,
+  onBackToList,
 }: GroupsScreenProps) => {
+  const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
   const [showGroupActions, setShowGroupActions] = useState(false);
@@ -125,6 +131,12 @@ export const GroupsScreen = ({
   const [groupCategoryFormIcon, setGroupCategoryFormIcon] = useState(CATEGORY_ICONS[0]);
   const [groupCategoryBusy, setGroupCategoryBusy] = useState(false);
   const [groupCategoryError, setGroupCategoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (routeGroupId) {
+      setView('detail');
+    }
+  }, [routeGroupId]);
 
   const selectedGroup = useMemo(() => groups.find(group => group.id === selectedGroupId) || null, [groups, selectedGroupId]);
   const summary = selectedGroup ? summarizeTransactions(selectedGroup) : { total: 0, count: 0 };
@@ -262,7 +274,7 @@ export const GroupsScreen = ({
   const openGroupDetail = (groupId: string) => {
     onSelectGroup(groupId);
     setDetailTab('summary');
-    setView('detail');
+    navigate(`/groups/${groupId}`);
   };
 
   const resetGroupCategoryForm = () => {
@@ -399,8 +411,12 @@ export const GroupsScreen = ({
               type="button"
               className="button button--ghost button--small"
               onClick={() => {
-                setDetailTab('summary');
-                setView('list');
+                if (onBackToList) {
+                  onBackToList();
+                } else {
+                  setDetailTab('summary');
+                  setView('list');
+                }
               }}
             >
               Volver a grupos
@@ -1231,7 +1247,13 @@ export const GroupsScreen = ({
             title="Selecciona un grupo"
             description="Vuelve al listado y abre uno de tus grupos."
             actionLabel="Ir al listado"
-            onAction={() => setView('list')}
+            onAction={() => {
+              if (onBackToList) {
+                onBackToList();
+              } else {
+                setView('list');
+              }
+            }}
           />
         </SectionCard>
       )}

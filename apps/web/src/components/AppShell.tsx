@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
 import { BottomNav } from '@/components/BottomNav';
-import type { AppTab } from '@/types';
 
 type AppShellProps = {
-  activeTab?: AppTab;
-  onTabChange?: (tab: AppTab) => void;
   headerTitle: string;
   headerSubtitle: string;
   children: ReactNode;
@@ -12,11 +9,9 @@ type AppShellProps = {
 };
 
 export const AppShell = ({
-  activeTab,
   children,
   headerSubtitle,
   headerTitle,
-  onTabChange,
   showNav = true,
 }: AppShellProps) => (
   <div className={`app-shell ${showNav ? 'app-shell--with-nav' : 'app-shell--no-nav'}`}>
@@ -30,6 +25,6 @@ export const AppShell = ({
       <main className="app-content">{children}</main>
     </div>
 
-    {showNav && activeTab && onTabChange ? <BottomNav activeTab={activeTab} onChange={onTabChange} /> : null}
+    {showNav && <BottomNav />}
   </div>
 );
