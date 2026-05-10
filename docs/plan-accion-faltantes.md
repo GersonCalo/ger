@@ -6,7 +6,7 @@ Este documento prioriza lo que falta por completar según `docs/prd-ingenieria.m
 - Paginación del historial por **cursor**.
 - Idempotencia como **campo en el body**.
 
-## 1) P0-004: Editar y eliminar movimiento personal
+## 1) P0-004: Editar y eliminar movimiento personal ✅ DONE
 
 ### Objetivo (Product Owner)
 Como usuario, quiero corregir o borrar movimientos personales que registré mal, para que mi información contable sea correcta y mi disponible/resumen se actualice automáticamente.
@@ -35,7 +35,7 @@ Frontend (Web):
 3. Tras editar/eliminar, `GET /balance` y `GET /transactions` reflejan el cambio.
 4. Si el id no existe, devuelve 404.
 
-## 2) P0-014: Validación y errores de API consistentes
+## 2) P0-014: Validación y errores de API consistentes ✅ DONE
 
 ### Objetivo (Product Owner)
 Como equipo, quiero que los errores de validación sean consistentes y legibles, para reducir confusión del usuario y facilitar el soporte/debug.
@@ -60,7 +60,7 @@ Frontend (Web):
 2. Errores de validación incluyen un código/identificador consistente y `details` cuando aplique.
 3. Errores 5xx no filtran información sensible en producción.
 
-## 3) P1-003: Filtros + paginación por cursor en historial unificado
+## 3) P1-003: Filtros + paginación por cursor en historial unificado ✅ DONE
 
 ### Objetivo (Product Owner)
 Como usuario, quiero filtrar mi historial por fecha, tipo y origen, y cargarlo por páginas sin duplicados, para auditar mis movimientos rápido.
@@ -90,7 +90,7 @@ Frontend (Web):
 2. Paginación estable: no duplica ni omite elementos al cargar más.
 3. API no devuelve todo por defecto (usa límite razonable).
 
-## 4) P1-005: Idempotencia en acciones críticas (gasto y liquidación)
+## 4) P1-005: Idempotencia en acciones críticas (gasto y liquidación) ✅ DONE
 
 ### Objetivo (Product Owner)
 Como usuario, si la app reintenta una creación por mala conexión, no quiero terminar con gastos o liquidaciones duplicadas.
@@ -116,7 +116,7 @@ Frontend (Web):
 2. La segunda request devuelve la misma entidad (o respuesta equivalente) sin duplicar.
 3. Misma key con payload distinto devuelve 409 (o error claro) y no crea nada.
 
-## 5) P2-003: Exportación CSV de movimientos
+## 5) P2-003: Exportación CSV de movimientos ✅ DONE
 
 ### Objetivo (Product Owner)
 Como usuario, quiero exportar mi historial filtrado a CSV, para analizarlo fuera de la app.
@@ -138,7 +138,7 @@ Frontend (Web):
 2. El archivo abre correctamente en Excel/Sheets.
 3. Incluye columnas mínimas acordadas.
 
-## 6) P2-001: Multi-moneda avanzada (conversión)
+## 6) P2-001: Multi-moneda avanzada (conversión) de momento no necesario. 
 
 ### Objetivo (Product Owner)
 Como usuario con grupos en distintas monedas, quiero ver un consolidado con tipo de cambio aplicado, para entender mi posición total en una moneda base.

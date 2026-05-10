@@ -39,32 +39,59 @@ Las apps de finanzas personales y las apps de "expense splitting" suelen estar s
 - Alta, edicion y eliminacion de movimientos personales (ingresos y gastos).
 - Vista de disponible actual.
 - Historial de movimientos con origen manual o grupal.
+- Paginacion por cursor con filtros por fecha, tipo y origen.
+- Exportacion de movimientos a CSV.
+- Transacciones derivadas de grupo protegidas contra edicion/eliminacion manual (`locked: true`).
 
-### 6.2 Grupos y miembros
+### 6.2 Categorias
+
+- Categorias globales (solo lectura, creadas por defecto).
+- Categorias personales (CRUD completo para el propietario).
+- Categorias de grupo (CRUD completo para miembros del grupo).
+- Las categorias se pueden asignar a transacciones personales y gastos de grupo.
+
+### 6.3 Grupos y miembros
 
 - Crear grupo con moneda por defecto EUR.
 - Agregar miembros reales (usuario) e invitados (sin userId).
 - Acceso a grupo por codigo.
+- Dar de baja miembros (soft delete, marca `leftAt`).
+- Reactivar miembros dados de baja (`rejoin`).
+- Roles: `admin` y `member`. El ultimo admin no puede ser degradado ni eliminado.
 
-### 6.3 Gastos compartidos
+### 6.4 Gastos compartidos
 
-- Registrar gasto con pagador, monto y descripcion.
+- Registrar gasto con pagador, monto, descripcion y fecha.
 - Reparto de gasto en modos `equal` y `manual`.
 - Calculo de balances por miembro.
+- Idempotencia en creacion de gastos (`idempotencyKey`) para evitar duplicados.
+- Edicion permitida al admin del grupo, creador del gasto o pagador.
+- Eliminacion de gastos solo por admin (elimina tambien transacciones derivadas).
+- Notificaciones push a miembros del grupo cuando se crea un gasto.
 
-### 6.4 Liquidaciones
+### 6.5 Liquidaciones
 
 - Registrar pagos de liquidacion entre miembros.
-- Persistir historial de liquidaciones.
+- Persistir historial de liquidaciones con estados (`confirmed`, `cancelled`).
 - Reflejar impacto de liquidaciones en balance grupal y disponible personal.
+- Idempotencia en creacion de liquidaciones (`idempotencyKey`).
+- Validacion de deuda existente y monto maximo liquidable.
+- Notificaciones push al receptor de una liquidacion.
 
-### 6.5 Integracion contable
+### 6.6 Integracion contable
 
-- Todo gasto/liquidacion grupal relevante debe generar lectura consistente en finanzas personales.
+- Todo gasto/liquidacion grupal relevante genera lectura consistente en finanzas personales.
 - La vista de resumen debe mostrar:
   - Disponible.
   - Balance en grupos.
   - Total recuperable.
+
+### 6.7 Notificaciones push
+
+- Suscripcion a notificaciones web push (Web Push API).
+- Notificaciones de nuevos gastos en grupos.
+- Notificaciones de liquidaciones recibidas.
+- Notificaciones de eliminacion de un grupo.
 
 ## 7. Fuera de alcance (por ahora)
 
@@ -84,7 +111,7 @@ Las apps de finanzas personales y las apps de "expense splitting" suelen estar s
 - **Confiabilidad**: consistencia de datos en operaciones contables criticas.
 - **Seguridad**:
   - JWT para autenticacion.
-  - Validacion de entrada en API.
+  - Validacion de entrada con Zod en todos los endpoints.
   - No exponer secretos en repositorio.
 - **Observabilidad minima**:
   - logs de errores por endpoint,
@@ -103,23 +130,29 @@ Las apps de finanzas personales y las apps de "expense splitting" suelen estar s
 1. **Onboarding**
    - Usuario crea cuenta/inicia sesion y entra a dashboard.
 2. **Registro personal**
-   - Usuario agrega ingreso/gasto y actualiza disponible.
-3. **Creacion de grupo**
+   - Usuario agrega ingreso/gasto con categoria opcional y actualiza disponible.
+3. **Gestion de categorias**
+   - Usuario crea categorias personales o de grupo para organizar movimientos.
+4. **Creacion de grupo**
    - Usuario crea grupo, agrega miembros y comparte codigo.
-4. **Carga de gasto grupal**
-   - Se registra gasto, se divide (`equal`/`manual`) y se recalcula balance.
-5. **Liquidacion**
-   - Se registra pago entre miembros y se ajustan saldos.
-6. **Consulta consolidada**
+5. **Carga de gasto grupal**
+   - Se registra gasto con idempotencia, se divide (`equal`/`manual`) y se recalcula balance.
+6. **Liquidacion**
+   - Se registra pago entre miembros con idempotencia y se ajustan saldos.
+7. **Consulta consolidada**
    - Usuario revisa disponible, balance grupal y total.
+8. **Export de datos**
+   - Usuario exporta su historial de movimientos a CSV.
 
 ## 11. Criterios de aceptacion de producto
 
-- El usuario puede crear y editar movimientos personales sin errores de validacion en casos validos.
+- El usuario puede crear, editar y eliminar movimientos personales sin errores de validacion en casos validos.
 - Un gasto grupal actualizado impacta en balances de grupo y en historial unificado de movimientos.
 - Una liquidacion registrada actualiza saldos de forma consistente para pagador y receptor.
+- Las transacciones derivadas de grupo no pueden ser editadas ni eliminadas manualmente.
 - Las rutas principales responden en los SLA definidos en ambiente objetivo.
 - El frontend consume correctamente `${VITE_API_URL}/api/v1` con fallback esperado.
+- Operaciones de creacion de gastos y liquidaciones son idempotentes.
 
 ## 12. Riesgos y mitigaciones
 
@@ -129,19 +162,21 @@ Las apps de finanzas personales y las apps de "expense splitting" suelen estar s
   - **Mitigacion**: rebuild obligatorio tras cambios de schema y checklist de despliegue.
 - **Riesgo**: complejidad UX por mezclar dos dominios financieros.
   - **Mitigacion**: copy claro, jerarquia visual y onboarding guiado.
+- **Riesgo**: duplicacion de gastos/liquidaciones por reintentos de red.
+  - **Mitigacion**: idempotencia con `idempotencyKey` en operaciones de escritura grupal.
 
 ## 13. Roadmap propuesto
 
-- **Fase 1 (actual)**: finanzas + grupos + liquidaciones persistidas.
+- **Fase 1 (actual)**: finanzas + grupos + liquidaciones + categorias + notificaciones push.
 - **Fase 2**: mejoras UX de conciliacion y reportes.
-- **Fase 3**: colaboracion avanzada, notificaciones y automatizaciones.
+- **Fase 3**: colaboracion avanzada, automatizaciones y alertas.
 - **Fase 4**: capacidades premium (multi-moneda, integraciones externas).
 
 ## 14. Dependencias
 
 - Infra Docker local para desarrollo rapido.
 - Base de datos PostgreSQL disponible y consistente.
-- Variables de entorno minimas (`DATABASE_URL`, `JWT_SECRET`, etc.).
+- Variables de entorno minimas (`DATABASE_URL`, `JWT_SECRET`, VAPID keys para push).
 
 ## 15. Definicion de listo (DoD)
 
