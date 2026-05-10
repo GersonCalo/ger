@@ -2,9 +2,11 @@
 
 Base URL local: http://localhost:8080
 
-## Salud
+## Salud y configuración
 - `GET /health`
   - Respuesta: `{ status: "ok", env: "development|production" }`
+- `GET /config`
+  - Respuesta: `{ hasDatabaseUrl: true|false }`
 
 ## Autenticación
 - `POST /auth/register`
@@ -14,7 +16,10 @@ Base URL local: http://localhost:8080
 ## Finanzas personales
 - `GET /balance`
 - `GET /transactions`
+- `GET /transactions/export.csv`
 - `POST /transactions`
+- `PATCH /transactions/:id`
+- `DELETE /transactions/:id`
 
 ## Categorías
 - `GET /categories`
@@ -35,6 +40,7 @@ Base URL local: http://localhost:8080
 - `POST /groups/:id/members`
 - `PUT /groups/:id/members/:mid`
 - `DELETE /groups/:id/members/:mid`
+- `POST /groups/:id/members/:mid/rejoin`
 - `GET /groups/:id/expenses`
 - `POST /groups/:id/expenses`
 - `PUT /groups/:id/expenses/:eid`
@@ -42,6 +48,10 @@ Base URL local: http://localhost:8080
 - `GET /groups/:id/balances`
 - `POST /groups/:id/settlements`
 - `PUT /groups/:id/settlements/:sid`
+
+## Notificaciones push
+- `GET /push/vapid-public-key`
+- `POST /push/subscribe`
 
 ---
 
@@ -69,21 +79,40 @@ Base URL local: http://localhost:8080
   - `DELETE /groups/:groupId/categories/:id` elimina una categoría del grupo. Solo miembros del grupo.
 - Las categorías globales **no se pueden editar ni eliminar** desde ningún endpoint.
 
+### Transacciones personales
+- `GET /transactions` soporta paginación por cursor y filtros por query params:
+  - `from`, `to` — rango de fechas (ISO datetime)
+  - `type` — `'income' | 'expense'`
+  - `origin` — `'manual' | 'group'` (transacciones manuales vs derivadas de gastos de grupo)
+  - `cursor`, `limit` — paginación (default 20, max 100)
+  - Respuesta: `{ transactions[], nextCursor, hasMore }`
+- `GET /transactions/export.csv` exporta todas las transacciones filtradas a CSV. Mismos filtros que `GET /transactions` excepto cursor/limit. Descarga automática como `movimientos-YYYY-MM-DD.csv`.
+- `POST /transactions` crea una transacción manual. Body: `{ type, amount, categoryId?, note?, occurredAt? }`. `amount` acepta número o string.
+- `PATCH /transactions/:id` edita una transacción manual propia. Body: `{ type?, amount?, categoryId?, note?, occurredAt? }`. No se puede editar si `locked: true`.
+- `DELETE /transactions/:id` elimina una transacción manual propia. No se puede eliminar si `locked: true`.
+- Las transacciones con `sourceType` derivado de grupo (`group_expense`, `group_settlement_paid`, `group_settlement_received`) tienen `locked: true` y no se pueden editar ni eliminar manualmente.
+
 ### Balances
 - `GET /balance` devuelve: `{ personalIncome, personalExpense, personalBalance, groupNet, totalBalance, groupsBreakdown[] }`.
-- `GET /groups/:id/balances` devuelve: `{ members[], expenses[], settlements[], balances[], suggestions[] }`.
+- `GET /groups/:id/balances` devuelve: `{ group, members[], expenses[], settlements[], balances[], suggestions[] }`.
 
 ### Grupos
-- `POST /groups/join-by-code` crea un miembro real usando un código fijo del grupo. Body: `{ code }`.
+- `POST /groups` crea un grupo con miembros opcionales. Body: `{ name, currency?, members?: [{ userId?, displayName, weight?, role? }] }`. El creador se añade automáticamente como admin.
+- `POST /groups/join-by-code` crea un miembro real usando un código de grupo. Body: `{ code }`.
 - `GET /groups/:id/join-code` expone el código del grupo (solo para admins).
+- `POST /groups/:id/members` añade un miembro al grupo (solo admin). Body: `{ userId?, displayName, weight?, role? }`.
+- `PUT /groups/:id/members/:mid` actualiza un miembro (solo admin). Body: `{ displayName?, weight?, role? }`. El último admin no puede perder permisos de administración.
+- `DELETE /groups/:id/members/:mid` da de baja un miembro (soft delete, marca `leftAt`). Solo admin. No puedes eliminarte a ti mismo ni al último admin del grupo.
+- `POST /groups/:id/members/:mid/rejoin` reactiva un miembro que fue dado de baja. Solo admin.
 - `POST /groups/:id/expenses` y `PUT /groups/:id/expenses/:eid` soportan:
   - `splitMethod: 'equal'` — reparto equitativo automático
   - `splitMethod: 'manual'` — reparto manual con importes exactos por miembro
-- En reparto manual la suma de `shareAmount` debe coincidir exactamente con el total del gasto.
-- La edición de gastos está permitida al **admin del grupo** y al **pagador del gasto**.
-- `POST /groups/:id/settlements` registra una liquidación propuesta.
-- `PUT /groups/:id/settlements/:sid` cambia estado a `confirmed` o `cancelled`.
-- El usuario autenticado solo puede registrar liquidaciones donde sea el deudor (`fromMemberId`).
+  - Ambos requieren `idempotencyKey` en el body para evitar duplicados.
+  - En reparto manual la suma de `shareAmount` debe coincidir exactamente con el total del gasto.
+- La edición/creación de gastos está permitida al **admin del grupo**, al **creador del gasto** (`createdByMemberId`), o al **pagador** (si no hay `createdByMemberId`).
+- `DELETE /groups/:id/expenses/:eid` elimina un gasto y sus transacciones derivadas. Solo admin.
+- `POST /groups/:id/settlements` registra una liquidación. Body: `{ fromMemberId, toMemberId, amount, occurredAt?, idempotencyKey }`. Requiere `idempotencyKey`. El usuario debe ser el deudor (`fromMemberId`). Valida que exista deuda real y que el monto no supere lo pendiente.
+- `PUT /groups/:id/settlements/:sid` cambia estado a `confirmed` o `cancelled`. Solo admin del grupo.
 
 ### Moneda y redondeo
 - Los importes de reparto se calculan y cierran siempre a **2 decimales**.
