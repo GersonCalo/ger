@@ -1447,6 +1447,552 @@ select.field__input option {
 }
 
 /* ============================================
+   Toast Notifications
+   ============================================ */
+
+.toast-stack {
+  position: fixed;
+  bottom: calc(80px + var(--s-4));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--s-2);
+  z-index: 1000;
+  width: min(calc(100% - var(--s-4) * 2), 400px);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  animation: toast-slide-up 0.3s ease;
+}
+
+.toast--success {
+  border-left: 3px solid var(--positive);
+}
+
+.toast--error {
+  border-left: 3px solid var(--negative);
+}
+
+.toast--info {
+  border-left: 3px solid var(--brand);
+}
+
+.toast__icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toast--success .toast__icon {
+  color: var(--positive);
+}
+
+.toast--error .toast__icon {
+  color: var(--negative);
+}
+
+.toast--info .toast__icon {
+  color: var(--brand);
+}
+
+.toast__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.toast__message {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.toast__close {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.toast__close:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.toast__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes toast-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   Modal
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s ease;
+  pointer-events: none;
+}
+
+.modal-overlay--open {
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.modal-overlay--closing {
+  background: rgba(0, 0, 0, 0);
+}
+
+.modal-panel {
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transform: scale(0.95);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.modal-overlay--open .modal-panel {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.modal-panel--sm {
+  max-width: 360px;
+}
+
+.modal-panel--md {
+  max-width: 520px;
+}
+
+.modal-panel--lg {
+  max-width: 720px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-4) var(--s-4) var(--s-3);
+  border-bottom: 1px solid var(--divider);
+}
+
+.modal-header__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.modal-header__close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.modal-header__close:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.modal-header__close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.modal-body {
+  padding: var(--s-4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ============================================
+   Modal Steps Indicator
+   ============================================ */
+
+.modal-steps {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--divider);
+}
+
+.modal-steps__bar {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.modal-steps__indicator {
+  flex: 1;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--divider);
+  transition: background var(--transition);
+}
+
+.modal-steps__indicator--active {
+  background: var(--brand);
+}
+
+.modal-steps__label {
+  margin-top: var(--s-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ============================================
+   Split Members Checkboxes
+   ============================================ */
+
+.split-members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+}
+
+.split-members__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition);
+  font-size: var(--text-md);
+}
+
+.split-members__item:hover {
+  background: var(--surface);
+}
+
+.split-members__item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+/* ============================================
+   Inline Actions
+   ============================================ */
+
+.inline-actions {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+/* ============================================
+   Category Tag
+   ============================================ */
+
+.category-tag {
+  font-weight: 500;
+}
+
+/* ============================================
+   Form Inline
+   ============================================ */
+
+.form-stack--inline {
+  padding: var(--s-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+/* ============================================
+   Button Full Width
+   ============================================ */
+
+.button--full {
+  width: 100%;
+}
+
+.button--sm {
+  min-height: 32px;
+  padding: 0 var(--s-2);
+  font-size: var(--text-xs);
+}
+
+/* ============================================
+   Category Item Badge / Confirm
+   ============================================ */
+
+.category-item__badge {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.category-item--confirm-delete {
+  background: var(--negative-bg);
+  border-radius: var(--radius-md);
+  padding: var(--s-3);
+}
+
+.category-item--global {
+  opacity: 0.5;
+}
+
+/* ============================================
+   List Row Editing
+   ============================================ */
+
+.list-row--editing {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  margin: var(--s-2) 0;
+}
+
+/* ============================================
+   Split Summary Meta
+   ============================================ */
+
+.split-summary__meta {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--s-1);
+}
+
+/* ============================================
+   Drawer
+   ============================================ */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s ease;
+  pointer-events: none;
+}
+
+.drawer-overlay--open {
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.drawer-overlay--closing {
+  background: rgba(0, 0, 0, 0);
+}
+
+.drawer-panel {
+  position: absolute;
+  background: var(--bg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s ease;
+  overflow-y: auto;
+}
+
+.drawer-panel--left {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(80vw, 320px);
+  transform: translateX(-100%);
+  border-right: 1px solid var(--divider);
+}
+
+.drawer-panel--right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(80vw, 320px);
+  transform: translateX(100%);
+  border-left: 1px solid var(--divider);
+}
+
+.drawer-panel--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 70vh;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  transform: translateY(100%);
+  border-top: 1px solid var(--divider);
+}
+
+.drawer-overlay--open .drawer-panel {
+  transform: translateX(0) translateY(0);
+}
+
+.drawer-header {
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-2) 0;
+}
+
+.drawer-nav__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  font-weight: 500;
+  text-align: left;
+  transition: background var(--transition);
+}
+
+.drawer-nav__item:hover {
+  background: var(--surface);
+}
+
+.drawer-nav__icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+.drawer-nav__label {
+  flex: 1;
+}
+
+/* ============================================
+   FAB (Floating Action Button)
+   ============================================ */
+
+.fab {
+  position: fixed;
+  right: var(--s-4);
+  bottom: calc(80px + var(--s-4));
+  z-index: 100;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.fab__button {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, background var(--transition);
+}
+
+.fab__button:hover {
+  background: var(--brand-hover);
+  transform: scale(1.05);
+}
+
+.fab__button:active {
+  transform: scale(0.95);
+}
+
+.fab__button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.fab--expanded .fab__button {
+  transform: rotate(45deg);
+}
+
+.fab-actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.fab-actions__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: fab-action-pop 0.2s ease both;
+  white-space: nowrap;
+}
+
+.fab-actions__item:hover {
+  background: var(--surface);
+}
+
+.fab-actions__icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+@keyframes fab-action-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================
    Responsive (tablet+)
    ============================================ */
 
@@ -1474,6 +2020,14 @@ select.field__input option {
 
   .app-shell--with-nav {
     padding-bottom: var(--s-8);
+  }
+
+  .fab {
+    right: calc(50% - 180px);
+  }
+
+  .toast-stack {
+    bottom: var(--s-6);
   }
 }
 

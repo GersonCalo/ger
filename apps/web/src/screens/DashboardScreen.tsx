@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
@@ -9,7 +10,6 @@ import type { AuthUser, GroupSummary, Transaction } from '@/types';
 type DashboardScreenProps = {
   groups: GroupSummary[];
   onGoToGroups: () => void;
-  onGoToTransactions: () => void;
   summary: {
     balance: number;
     income: number;
@@ -24,14 +24,18 @@ type DashboardScreenProps = {
 export const DashboardScreen = ({
   groups,
   onGoToGroups,
-  onGoToTransactions,
   summary,
   transactions,
   user,
 }: DashboardScreenProps) => {
+  const navigate = useNavigate();
   const featuredGroup = groups[0];
   const featuredGroupSummary = featuredGroup ? summarizeTransactions(featuredGroup) : null;
   const latestTransactions = transactions.slice(0, 3);
+
+  const openCreateTransaction = () => {
+    navigate('/transactions', { state: { openCreateModal: true } });
+  };
 
   return (
     <div className="screen-stack">
@@ -44,7 +48,7 @@ export const DashboardScreen = ({
           <span>Grupos {formatMoney(summary.groupNet, user.currency)}</span>
         </div>
         <div className="quick-actions quick-actions--floating">
-          <button type="button" className="button button--primary" onClick={onGoToTransactions}>
+          <button type="button" className="button button--primary" onClick={openCreateTransaction}>
             Añadir movimiento
           </button>
           <button type="button" className="button button--ghost" onClick={onGoToGroups}>
@@ -67,7 +71,7 @@ export const DashboardScreen = ({
             title="Sin movimientos"
             description="Añade el primero."
             actionLabel="Crear movimiento"
-            onAction={onGoToTransactions}
+            onAction={openCreateTransaction}
           />
         ) : (
           <div className="list-stack">

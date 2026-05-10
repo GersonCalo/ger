@@ -28,6 +28,7 @@ const DEFAULT_CURRENCY = 'EUR';
 const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const JOIN_CODE_LENGTH = 8;
 const positiveAmountSchema = z.union([z.number().positive(), z.string().min(1)]);
+const nonNegativeAmountSchema = z.union([z.number().min(0), z.string().min(0)]);
 
 const numberFromUnknown = (value: unknown) => {
   if (typeof value === 'number') return value;
@@ -38,6 +39,11 @@ const numberFromUnknown = (value: unknown) => {
 const normalizeAmount = (value: unknown) => {
   const amount = numberFromUnknown(value);
   return Number.isFinite(amount) && amount > 0 ? roundMoney(amount) : null;
+};
+
+const normalizeShareAmount = (value: unknown) => {
+  const amount = numberFromUnknown(value);
+  return Number.isFinite(amount) && amount >= 0 ? roundMoney(amount) : null;
 };
 
 const normalizeWeight = (value: unknown) => {
@@ -86,7 +92,7 @@ const updateMemberSchema = z
 
 const manualSplitSchema = z.object({
   memberId: z.string().uuid(),
-  shareAmount: positiveAmountSchema,
+  shareAmount: nonNegativeAmountSchema,
 });
 
 const expenseSchema = z
@@ -318,9 +324,9 @@ const buildExpenseSplits = (
       return { error: 'No puedes repetir miembros en el reparto personalizado' };
     }
 
-    const shareAmount = normalizeAmount(split.shareAmount);
-    if (!shareAmount) {
-      return { error: 'Cada importe del reparto personalizado debe ser mayor que 0' };
+    const shareAmount = normalizeShareAmount(split.shareAmount);
+    if (shareAmount === null) {
+      return { error: 'Cada importe del reparto personalizado debe ser un valor válido' };
     }
 
     seenMemberIds.add(split.memberId);
@@ -330,6 +336,10 @@ const buildExpenseSplits = (
 
   if (seenMemberIds.size !== memberIds.length) {
     return { error: 'Debes indicar el reparto para todos los miembros del grupo' };
+  }
+
+  if (assignedCents === 0) {
+    return { error: 'Al menos un miembro debe participar con un importe mayor que 0' };
   }
 
   if (assignedCents !== amountCents) {

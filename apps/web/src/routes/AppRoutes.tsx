@@ -51,14 +51,13 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
   return (
     <Routes>
       <Route element={<ProtectedRoute isAuthenticated={financeApp.isAuthenticated} booting={financeApp.booting} />}>
-        <Route element={<DashboardLayout />}>
+        <Route element={<DashboardLayout financeApp={financeApp} />}>
           <Route
             index
             element={
               <DashboardScreen
                 groups={financeApp.groups}
                 onGoToGroups={() => financeApp.setActiveTab('groups')}
-                onGoToTransactions={() => financeApp.setActiveTab('transactions')}
                 summary={financeApp.dashboardSummary}
                 transactions={financeApp.transactions}
                 user={financeApp.user!}

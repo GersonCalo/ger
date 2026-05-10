@@ -1,8 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
+import { Modal } from '@/components/ui/Modal';
 import { formatDate, formatMoney } from '@/lib/format';
+import { useToast } from '@/hooks/useToast';
 import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
 
 type TransactionsScreenProps = {
@@ -48,6 +51,8 @@ export const TransactionsScreen = ({
   hasMore,
   loadingMore,
 }: TransactionsScreenProps) => {
+  const toast = useToast();
+  const location = useLocation();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -56,7 +61,6 @@ export const TransactionsScreen = ({
 
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryIcon, setNewCategoryIcon] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,7 +75,17 @@ export const TransactionsScreen = ({
   const [filterFrom, setFilterFrom] = useState(filters?.from ? filters.from.slice(0, 16) : '');
   const [filterTo, setFilterTo] = useState(filters?.to ? filters.to.slice(0, 16) : '');
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
   const successTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { openCreateModal?: boolean } | null;
+    if (state?.openCreateModal) {
+      setIsCreateModalOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleApplyFilters = () => {
     const newFilters: TransactionListFilters = {};
@@ -105,6 +119,169 @@ export const TransactionsScreen = ({
     setEditingId(null);
   };
 
+  const resetCreateForm = () => {
+    setAmount('');
+    setCategoryId('');
+    setNote('');
+    setShowAddCategory(false);
+    setNewCategoryName('');
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!amount) return;
+
+    await onCreateTransaction({
+      type,
+      amount: Number(amount),
+      categoryId: categoryId || undefined,
+      note: note || undefined,
+      occurredAt: new Date().toISOString(),
+    });
+
+    if (successTimerRef.current) {
+      window.clearTimeout(successTimerRef.current);
+    }
+
+    setJustAdded(true);
+    successTimerRef.current = window.setTimeout(() => setJustAdded(false), 1400);
+    resetCreateForm();
+    setIsCreateModalOpen(false);
+  };
+
+  const createFormContent = (
+    <>
+      <div className="segmented-control">
+        <button
+          type="button"
+          className={`segmented-control__item ${type === 'expense' ? 'segmented-control__item--active' : ''}`}
+          onClick={() => setType('expense')}
+        >
+          Gasto
+        </button>
+        <button
+          type="button"
+          className={`segmented-control__item ${type === 'income' ? 'segmented-control__item--active' : ''}`}
+          onClick={() => setType('income')}
+        >
+          Ingreso
+        </button>
+      </div>
+
+      <form
+        className={`form-stack ${justAdded ? 'form-stack--success' : ''}`}
+        onSubmit={async event => {
+          event.preventDefault();
+          await handleCreateSubmit();
+        }}
+      >
+        <label className="field field--amount">
+          <span className="field__label">Monto</span>
+          <input
+            className="field__input field__input--amount"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            placeholder="0.00"
+            value={amount}
+            onChange={event => setAmount(event.target.value)}
+          />
+        </label>
+
+        <label className="field">
+          <div className="field__header">
+            <span className="field__label">Categoría</span>
+            {!showAddCategory && (
+              <button
+                type="button"
+                className="field__action"
+                onClick={() => setShowAddCategory(true)}
+              >
+                + Nueva
+              </button>
+            )}
+          </div>
+
+          {showAddCategory ? (
+            <div className="field__inline-row">
+              <input
+                className="field__input"
+                type="text"
+                placeholder="Ej. 🍕 Comida"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                disabled={creatingCategory}
+              />
+              <button
+                type="button"
+                className="button button--primary button--small"
+                disabled={creatingCategory || !newCategoryName.trim()}
+                onClick={async () => {
+                  setCreatingCategory(true);
+                  try {
+                    const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
+                    const icon = iconMatch ? iconMatch[0] : '';
+                    const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
+
+                    const cat = await onCreateCategory({ name, type, icon });
+                    setCategoryId(cat.id);
+                    setShowAddCategory(false);
+                    setNewCategoryName('');
+                  } catch (err) {
+                    toast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
+                  } finally {
+                    setCreatingCategory(false);
+                  }
+                }}
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                className="button button--ghost button--small"
+                onClick={() => setShowAddCategory(false)}
+                disabled={creatingCategory}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <select
+              className="field__input"
+              value={categoryId}
+              onChange={event => setCategoryId(event.target.value)}
+            >
+              <option value="">Sin categoría</option>
+              {categories
+                .filter(c => c.type === type && c.groupId === null)
+                .map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon ? `${c.icon} ` : ''}{c.name}
+                  </option>
+                ))}
+            </select>
+          )}
+        </label>
+
+        <label className="field">
+          <span className="field__label">Nota</span>
+          <input
+            className="field__input"
+            type="text"
+            placeholder="Opcional"
+            value={note}
+            onChange={event => setNote(event.target.value)}
+          />
+        </label>
+
+        {error ? <div className="form-error">{error}</div> : null}
+
+        <button type="submit" className="button button--primary" disabled={busy || !amount}>
+          {busy ? 'Guardando...' : 'Guardar movimiento'}
+        </button>
+      </form>
+    </>
+  );
+
   return (
     <div className="screen-stack">
       <section className="screen-intro">
@@ -118,163 +295,17 @@ export const TransactionsScreen = ({
         <StatCard label="Gastos" value={formatMoney(summary.expense, user.currency)} tone="warning" />
       </div>
 
-      <SectionCard
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          resetCreateForm();
+          setIsCreateModalOpen(false);
+        }}
         title="Nuevo movimiento"
-        action={
-          <button type="button" className="button button--ghost button--small" onClick={onRefresh} disabled={busy}>
-            Actualizar
-          </button>
-        }
+        size="md"
       >
-        <div className="segmented-control">
-          <button
-            type="button"
-            className={`segmented-control__item ${type === 'expense' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setType('expense')}
-          >
-            Gasto
-          </button>
-          <button
-            type="button"
-            className={`segmented-control__item ${type === 'income' ? 'segmented-control__item--active' : ''}`}
-            onClick={() => setType('income')}
-          >
-            Ingreso
-          </button>
-        </div>
-
-        <form
-          className={`form-stack ${justAdded ? 'form-stack--success' : ''}`}
-          onSubmit={async event => {
-            event.preventDefault();
-
-            if (!amount) return;
-
-            await onCreateTransaction({
-              type,
-              amount: Number(amount),
-              categoryId: categoryId || undefined,
-              note: note || undefined,
-              occurredAt: new Date().toISOString(),
-            });
-
-            if (successTimerRef.current) {
-              window.clearTimeout(successTimerRef.current);
-            }
-
-            setJustAdded(true);
-            successTimerRef.current = window.setTimeout(() => setJustAdded(false), 1400);
-            setAmount('');
-            setCategoryId('');
-            setNote('');
-          }}
-        >
-          <label className="field field--amount">
-            <span className="field__label">Monto</span>
-            <input
-              className="field__input field__input--amount"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              placeholder="0.00"
-              value={amount}
-              onChange={event => setAmount(event.target.value)}
-            />
-          </label>
-
-          <label className="field">
-            <div className="field__header">
-              <span className="field__label">Categoría</span>
-              {!showAddCategory && (
-                <button
-                  type="button"
-                  className="field__action"
-                  onClick={() => setShowAddCategory(true)}
-                >
-                  + Nueva
-                </button>
-              )}
-            </div>
-
-            {showAddCategory ? (
-              <div className="field__inline-row">
-                <input
-                  className="field__input"
-                  type="text"
-                  placeholder="Ej. 🍕 Comida"
-                  value={newCategoryName}
-                  onChange={e => setNewCategoryName(e.target.value)}
-                  disabled={creatingCategory}
-                />
-                <button
-                  type="button"
-                  className="button button--primary button--small"
-                  disabled={creatingCategory || !newCategoryName.trim()}
-                  onClick={async () => {
-                    setCreatingCategory(true);
-                    try {
-                      const iconMatch = newCategoryName.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
-                      const icon = iconMatch ? iconMatch[0] : '';
-                      const name = iconMatch ? newCategoryName.slice(icon.length).trim() : newCategoryName.trim();
-
-                      const cat = await onCreateCategory({ name, type, icon });
-                      setCategoryId(cat.id);
-                      setShowAddCategory(false);
-                      setNewCategoryName('');
-                    } catch (err) {
-                      alert(err instanceof Error ? err.message : 'Error al crear');
-                    } finally {
-                      setCreatingCategory(false);
-                    }
-                  }}
-                >
-                  Guardar
-                </button>
-                <button
-                  type="button"
-                  className="button button--ghost button--small"
-                  onClick={() => setShowAddCategory(false)}
-                  disabled={creatingCategory}
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <select
-                className="field__input"
-                value={categoryId}
-                onChange={event => setCategoryId(event.target.value)}
-              >
-                <option value="">Sin categoría</option>
-                {categories
-                  .filter(c => c.type === type && c.groupId === null)
-                  .map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.icon ? `${c.icon} ` : ''}{c.name}
-                    </option>
-                  ))}
-              </select>
-            )}
-          </label>
-
-          <label className="field">
-            <span className="field__label">Nota</span>
-            <input
-              className="field__input"
-              type="text"
-              placeholder="Opcional"
-              value={note}
-              onChange={event => setNote(event.target.value)}
-            />
-          </label>
-
-          {error ? <div className="form-error">{error}</div> : null}
-
-          <button type="submit" className="button button--primary" disabled={busy || !amount}>
-            {busy ? 'Guardando...' : 'Guardar movimiento'}
-          </button>
-        </form>
-      </SectionCard>
+        {createFormContent}
+      </Modal>
 
       <SectionCard title="Historial">
         <div className="filters-stack">
@@ -383,7 +414,7 @@ export const TransactionsScreen = ({
         {transactions.length === 0 ? (
           <EmptyState
             title={hasActiveFilters ? 'Sin resultados' : 'No hay movimientos'}
-            description={hasActiveFilters ? 'Prueba otros filtros.' : 'Crea el primero.'}
+            description={hasActiveFilters ? 'Prueba otros filtros.' : 'Pulsa + para crear el primero.'}
           />
         ) : (
           <div className="list-stack">
@@ -414,7 +445,7 @@ export const TransactionsScreen = ({
                           });
                           cancelEditing();
                         } catch (err) {
-                          alert(err instanceof Error ? err.message : 'Error al actualizar');
+                          toast({ message: err instanceof Error ? err.message : 'Error al actualizar', type: 'error' });
                         }
                       }}
                     >
@@ -523,7 +554,7 @@ export const TransactionsScreen = ({
                                 try {
                                   await onDeleteTransaction(transaction.id);
                                 } catch (err) {
-                                  alert(err instanceof Error ? err.message : 'Error al eliminar');
+                                  toast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
                                 }
                               }}
                             >

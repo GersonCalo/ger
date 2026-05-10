@@ -5,6 +5,7 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { formatDate, formatMoney } from '@/lib/format';
 import { summarizeTransactions } from '@/lib/groups';
+import { useToast } from '@/hooks/useToast';
 import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary, Category } from '@/types';
 
 const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', '#64748B', '#EF4444', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
@@ -97,6 +98,7 @@ export const GroupsScreen = ({
   routeGroupId,
   onBackToList,
 }: GroupsScreenProps) => {
+  const toast = useToast();
   const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
@@ -604,7 +606,7 @@ export const GroupsScreen = ({
                                 setShowAddCategory(false);
                                 setNewCategoryName('');
                               } catch (err) {
-                                alert(err instanceof Error ? err.message : 'Error al crear');
+                                toast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
                               } finally {
                                 setCreatingCategory(false);
                               }
