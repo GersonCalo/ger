@@ -6,6 +6,8 @@ import { DashboardScreen } from '@/screens/DashboardScreen';
 import { TransactionsScreen } from '@/screens/TransactionsScreen';
 import { GroupsScreen } from '@/screens/GroupsScreen';
 import { GroupDetailScreen } from '@/screens/GroupDetailScreen';
+import { BudgetsScreen } from '@/screens/BudgetsScreen';
+import { RecurringScreen } from '@/screens/RecurringScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
 import type { UseFinanceAppReturn } from '@/hooks/useFinanceApp';
@@ -143,6 +145,8 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
               />
             }
           />
+          <Route path="budgets" element={<BudgetsScreen />} />
+          <Route path="recurring" element={<RecurringScreen />} />
         </Route>
       </Route>
       <Route

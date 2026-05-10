@@ -1,74 +1,23 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { AppTab } from '@/types';
-
-const tabs: Array<{ id: AppTab; path: string; label: string; icon: JSX.Element }> = [
-  {
-    id: 'home',
-    path: '/',
-    label: 'Inicio',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-9.5Z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'transactions',
-    path: '/transactions',
-    label: 'Movs',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5 6h14M5 12h14M5 18h14" />
-      </svg>
-    ),
-  },
-  {
-    id: 'groups',
-    path: '/groups',
-    label: 'Grupos',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm6 2a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.5 19.5a5.5 5.5 0 0 1 11 0M12.5 19.5a4.5 4.5 0 0 1 8 0" />
-      </svg>
-    ),
-  },
-  {
-    id: 'profile',
-    path: '/profile',
-    label: 'Perfil',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />
-      </svg>
-    ),
-  },
-];
-
-const getActiveTab = (pathname: string): AppTab => {
-  if (pathname === '/' || pathname === '') return 'home';
-  if (pathname === '/transactions') return 'transactions';
-  if (pathname.startsWith('/groups')) return 'groups';
-  if (pathname === '/profile') return 'profile';
-  return 'home';
-};
+import { bottomNavSections, getSectionByPathname } from '@/lib/navigation';
 
 export const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeTab = getActiveTab(location.pathname);
+  const activeSection = getSectionByPathname(location.pathname);
 
   return (
     <nav className="bottom-nav" aria-label="Navegación principal">
-      {tabs.map(tab => (
+      {bottomNavSections.map(section => (
         <button
-          key={tab.id}
+          key={section.id}
           type="button"
-          className={`bottom-nav__item ${tab.id === activeTab ? 'bottom-nav__item--active' : ''}`}
-          onClick={() => navigate(tab.path)}
-          aria-current={tab.id === activeTab ? 'page' : undefined}
+          className={`bottom-nav__item ${section.id === activeSection.id ? 'bottom-nav__item--active' : ''}`}
+          onClick={() => navigate(section.path)}
+          aria-current={section.id === activeSection.id ? 'page' : undefined}
         >
-          <span className="bottom-nav__icon">{tab.icon}</span>
-          <span className="bottom-nav__label">{tab.label}</span>
+          <span className="bottom-nav__icon">{section.icon}</span>
+          <span className="bottom-nav__label">{section.shortLabel}</span>
         </button>
       ))}
     </nav>

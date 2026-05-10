@@ -173,6 +173,37 @@ a {
   z-index: 10;
 }
 
+.app-header__top {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.app-header__menu-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: background var(--transition);
+}
+
+.app-header__menu-btn:hover {
+  background: var(--surface);
+}
+
+.app-header__menu-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.app-header__text {
+  min-width: 0;
+  flex: 1;
+}
+
 .app-header__eyebrow {
   display: none; /* Hide eyebrow — too decorative */
 }
@@ -948,7 +979,7 @@ select.field__input option {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   padding: var(--s-2) 0;
   padding-bottom: max(var(--s-2), env(safe-area-inset-bottom));
   background: var(--bg);
@@ -1882,7 +1913,16 @@ select.field__input option {
   font-size: var(--text-md);
   font-weight: 500;
   text-align: left;
-  transition: background var(--transition);
+  transition: background var(--transition), color var(--transition);
+}
+
+.drawer-nav__item--active {
+  color: var(--brand);
+  background: var(--surface);
+}
+
+.drawer-nav__item--active .drawer-nav__icon {
+  color: var(--brand);
 }
 
 .drawer-nav__item:hover {
@@ -2028,7 +2068,7 @@ select.field__input option {
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
-    width: min(400px, 100%);
+    width: min(360px, 100%);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     border: 1px solid var(--divider);
     border-bottom: none;

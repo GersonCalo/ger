@@ -7,6 +7,7 @@ type DrawerItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
+  active?: boolean;
 };
 
 type DrawerProps = {
@@ -22,7 +23,7 @@ type DrawerProps = {
 export const Drawer = ({
   isOpen,
   onClose,
-  side = 'right',
+  side = 'left',
   title,
   items,
   onItemClick,
@@ -31,22 +32,35 @@ export const Drawer = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       previouslyFocused.current = document.activeElement as HTMLElement;
       setMounted(true);
+      setVisible(true);
       document.body.style.overflow = 'hidden';
-    } else {
-      setMounted(false);
-      document.body.style.overflow = '';
-      if (previouslyFocused.current) {
-        previouslyFocused.current.focus();
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
       }
+    } else {
+      setVisible(false);
+      closeTimerRef.current = window.setTimeout(() => {
+        setMounted(false);
+        document.body.style.overflow = '';
+        if (previouslyFocused.current) {
+          previouslyFocused.current.focus();
+        }
+      }, 250);
     }
 
     return () => {
       document.body.style.overflow = '';
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
     };
   }, [isOpen]);
 
@@ -63,6 +77,28 @@ export const Drawer = ({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     },
     [onClose]
@@ -77,11 +113,11 @@ export const Drawer = ({
     }
   }, [isOpen]);
 
-  if (!mounted && !isOpen) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div
-      className={`drawer-overlay drawer-overlay--${side} ${isOpen ? 'drawer-overlay--open' : 'drawer-overlay--closing'}`}
+      className={`drawer-overlay drawer-overlay--${side} ${visible ? 'drawer-overlay--open' : 'drawer-overlay--closing'}`}
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
       role="presentation"
@@ -100,8 +136,11 @@ export const Drawer = ({
               <button
                 key={item.id}
                 type="button"
-                className="drawer-nav__item"
-                onClick={() => onItemClick?.(item.id)}
+                className={`drawer-nav__item ${item.active ? 'drawer-nav__item--active' : ''}`}
+                onClick={() => {
+                  onItemClick?.(item.id);
+                  onClose();
+                }}
               >
                 <span className="drawer-nav__icon">{item.icon}</span>
                 <span className="drawer-nav__label">{item.label}</span>

@@ -4,29 +4,12 @@ import { AppShell } from '@/components/AppShell';
 import { FAB } from '@/components/ui/FAB';
 import { Modal } from '@/components/ui/Modal';
 import { QuickGroupExpenseModal } from '@/components/ui/QuickGroupExpenseModal';
+import { getRouteMeta, shouldShowFab } from '@/lib/navigation';
 import { useToast } from '@/hooks/useToast';
 import type { UseFinanceAppReturn } from '@/hooks/useFinanceApp';
 
 type DashboardLayoutProps = {
   financeApp: UseFinanceAppReturn;
-};
-
-const routeMeta: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: 'Inicio', subtitle: 'Balance y actividad.' },
-  '/transactions': { title: 'Movimientos', subtitle: 'Registrar y revisar.' },
-  '/groups': { title: 'Grupos', subtitle: 'Compartidos.' },
-  '/profile': { title: 'Perfil', subtitle: 'Cuenta y ajustes.' },
-};
-
-const FAB_ALLOWED_ROUTES = ['/', '/transactions', '/groups'];
-
-const getRouteMeta = (pathname: string) => {
-  if (pathname.startsWith('/groups/')) return routeMeta['/groups'];
-  return routeMeta[pathname] || routeMeta['/'];
-};
-
-const showFabOnRoute = (pathname: string) => {
-  return FAB_ALLOWED_ROUTES.includes(pathname);
 };
 
 export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
@@ -54,7 +37,7 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
     }
   };
 
-  if (!showFabOnRoute(location.pathname)) {
+  if (!shouldShowFab(location.pathname)) {
     return (
       <AppShell headerTitle={title} headerSubtitle={subtitle}>
         <Outlet />
