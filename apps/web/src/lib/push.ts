@@ -79,7 +79,8 @@ export const subscribeToPush = async (token: string): Promise<boolean> => {
     // Subscribe
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      // TS lib.dom has some variance around ArrayBufferLike; this is still a valid BufferSource at runtime.
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
     });
 
     // Send subscription to server

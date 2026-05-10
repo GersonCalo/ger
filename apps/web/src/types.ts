@@ -22,6 +22,7 @@ export type Transaction = {
   id: string;
   type: 'income' | 'expense';
   amount: string;
+  categoryId: string | null;
   category: Category | null;
   note: string | null;
   occurredAt: string;
