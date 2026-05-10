@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
@@ -100,6 +100,7 @@ export const GroupsScreen = ({
 }: GroupsScreenProps) => {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
   const [showGroupActions, setShowGroupActions] = useState(false);
@@ -139,6 +140,13 @@ export const GroupsScreen = ({
       setView('detail');
     }
   }, [routeGroupId]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'payments' && routeGroupId) {
+      setDetailTab('payments');
+    }
+  }, [searchParams, routeGroupId]);
 
   const selectedGroup = useMemo(() => groups.find(group => group.id === selectedGroupId) || null, [groups, selectedGroupId]);
   const summary = selectedGroup ? summarizeTransactions(selectedGroup) : { total: 0, count: 0 };

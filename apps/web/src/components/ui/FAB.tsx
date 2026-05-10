@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 type FabAction = {
   id: string;
   label: string;
+  ariaLabel?: string;
   icon: React.ReactNode;
+  disabled?: boolean;
 };
 
 type FabProps = {
@@ -17,7 +19,9 @@ type FabProps = {
 export const FAB = ({ icon, onClick, label, actions, onActionClick }: FabProps) => {
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const isExpandable = actions && actions.length > 0;
+  const menuId = 'fab-menu';
 
   const handleClick = useCallback(() => {
     if (isExpandable) {
@@ -31,6 +35,7 @@ export const FAB = ({ icon, onClick, label, actions, onActionClick }: FabProps) 
     (id: string) => {
       setExpanded(false);
       onActionClick?.(id);
+      triggerRef.current?.focus();
     },
     [onActionClick]
   );
@@ -39,6 +44,7 @@ export const FAB = ({ icon, onClick, label, actions, onActionClick }: FabProps) 
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape' && expanded) {
         setExpanded(false);
+        triggerRef.current?.focus();
       }
     },
     [expanded]
@@ -64,13 +70,15 @@ export const FAB = ({ icon, onClick, label, actions, onActionClick }: FabProps) 
       onKeyDown={handleKeyDown}
     >
       {isExpandable && expanded && (
-        <div className="fab-actions" role="menu">
+        <div className="fab-actions" role="menu" id={menuId} aria-label="Acciones rápidas">
           {actions.map((action, index) => (
             <button
               key={action.id}
               type="button"
               className="fab-actions__item"
               role="menuitem"
+              aria-label={action.ariaLabel || action.label}
+              disabled={action.disabled}
               style={{ animationDelay: `${index * 50}ms` }}
               onClick={() => handleActionClick(action.id)}
             >
@@ -81,11 +89,14 @@ export const FAB = ({ icon, onClick, label, actions, onActionClick }: FabProps) 
         </div>
       )}
       <button
+        ref={triggerRef}
         type="button"
         className="fab__button"
         onClick={handleClick}
-        aria-label={label || (isExpandable ? 'Abrir acciones' : 'Acción')}
+        aria-label={label || (isExpandable ? 'Abrir acciones rápidas' : 'Acción')}
+        aria-haspopup={isExpandable ? 'menu' : undefined}
         aria-expanded={isExpandable ? expanded : undefined}
+        aria-controls={isExpandable ? menuId : undefined}
       >
         {icon}
       </button>
