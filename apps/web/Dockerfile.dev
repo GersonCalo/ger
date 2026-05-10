@@ -10,6 +10,9 @@ RUN npm install
 # Luego copiamos el código fuente de web
 COPY apps/web ./apps/web
 
+# Ejecutar tests (si falla, se detiene el build)
+RUN npm run test:run --workspace=apps/web
+
 EXPOSE 3000
 
 # Usar los scripts de workspace para ejecutar

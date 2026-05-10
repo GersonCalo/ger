@@ -23,6 +23,8 @@ COPY packages/db ./packages/db
 
 # Generar cliente de Prisma
 RUN cd apps/api && npx prisma generate --schema=../../packages/db/schema.prisma
+# Ejecutar tests (si falla, se detiene el build)
+RUN npm run test:run --workspace=apps/api
 # Compilar el código TypeScript
 RUN npm run build --workspace=apps/api
 
