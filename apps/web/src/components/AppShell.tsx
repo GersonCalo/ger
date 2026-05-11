@@ -75,6 +75,7 @@ export const AppShell = ({
       <Drawer
         isOpen={drawerOpen}
         onClose={closeDrawer}
+        id="nav-drawer"
         side="left"
         title="Navegación"
         items={drawerItems}

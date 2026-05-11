@@ -10,36 +10,68 @@ type DrawerItem = {
   active?: boolean;
 };
 
+type SwipeConfig = {
+  closeThresholdPx?: number;
+  verticalLockThresholdPx?: number;
+};
+
 type DrawerProps = {
   isOpen: boolean;
   onClose: () => void;
   side?: DrawerSide;
+  id?: string;
   title?: string;
   items?: DrawerItem[];
   onItemClick?: (id: string) => void;
   children?: React.ReactNode;
+  swipeConfig?: SwipeConfig;
 };
+
+const DEFAULT_SWIPE_CLOSE_THRESHOLD = 72;
+const DEFAULT_VERTICAL_LOCK_THRESHOLD = 12;
 
 export const Drawer = ({
   isOpen,
   onClose,
   side = 'left',
+  id,
   title,
   items,
   onItemClick,
   children,
+  swipeConfig,
 }: DrawerProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
+  const previouslyFocused = useRef<HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
+
+  const isDragging = useRef(false);
+  const isVerticalLock = useRef(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  const panelId = id ?? `drawer-panel-${useRef<string>(Math.random().toString(36).slice(2, 9)).current}`;
+
+  const closeThreshold = swipeConfig?.closeThresholdPx ?? DEFAULT_SWIPE_CLOSE_THRESHOLD;
+  const verticalLockThreshold = swipeConfig?.verticalLockThresholdPx ?? DEFAULT_VERTICAL_LOCK_THRESHOLD;
+
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    setIsCoarsePointer(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsCoarsePointer(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       previouslyFocused.current = document.activeElement as HTMLElement;
       setMounted(true);
       setVisible(true);
+      setDragOffset(0);
       document.body.style.overflow = 'hidden';
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current);
@@ -113,6 +145,90 @@ export const Drawer = ({
     }
   }, [isOpen]);
 
+  const commitSwipe = useCallback(
+    (offset: number) => {
+      const panelWidth = panelRef.current?.getBoundingClientRect().width ?? 320;
+      const shouldClose = side === 'left'
+        ? offset < -closeThreshold
+        : side === 'right'
+          ? offset > closeThreshold
+          : Math.abs(offset) > closeThreshold;
+
+      if (shouldClose) {
+        onClose();
+      } else {
+        setDragOffset(0);
+      }
+    },
+    [closeThreshold, side, onClose]
+  );
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isCoarsePointer) return;
+      if (e.button !== 0) return;
+      if (side === 'bottom') return;
+
+      isDragging.current = true;
+      isVerticalLock.current = false;
+      startX.current = e.clientX;
+      startY.current = e.clientY;
+
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture may fail in some environments
+      }
+    },
+    [isCoarsePointer, side]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDragging.current) return;
+
+      const dx = e.clientX - startX.current;
+      const dy = e.clientY - startY.current;
+
+      if (!isVerticalLock.current) {
+        if (Math.abs(dy) > verticalLockThreshold && Math.abs(dy) > Math.abs(dx)) {
+          isVerticalLock.current = true;
+          isDragging.current = false;
+          setDragOffset(0);
+          return;
+        }
+      }
+
+      if (isVerticalLock.current) return;
+
+      if (side === 'left' && dx > 0) {
+        setDragOffset(0);
+        return;
+      }
+      if (side === 'right' && dx < 0) {
+        setDragOffset(0);
+        return;
+      }
+
+      setDragOffset(dx);
+    },
+    [side, verticalLockThreshold]
+  );
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    commitSwipe(dragOffset);
+  }, [commitSwipe, dragOffset]);
+
+  const isSide = side === 'left' || side === 'right';
+  const panelStyle: React.CSSProperties = isSide && isCoarsePointer && dragOffset !== 0
+    ? {
+        transform: `translateX(${dragOffset}px)`,
+        transition: 'none',
+      }
+    : {};
+
   if (!mounted) return null;
 
   return createPortal(
@@ -124,12 +240,19 @@ export const Drawer = ({
     >
       <div
         ref={panelRef}
+        id={panelId}
         className={`drawer-panel drawer-panel--${side}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title || 'Panel'}
+        aria-labelledby={title ? `${panelId}-title` : undefined}
+        aria-label={!title ? 'Panel' : undefined}
+        style={panelStyle}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
-        {title && <div className="drawer-header">{title}</div>}
+        {title && <div id={`${panelId}-title`} className="drawer-header">{title}</div>}
         {items && items.length > 0 ? (
           <nav className="drawer-nav" aria-label={title || 'Navegación'}>
             {items.map(item => (
