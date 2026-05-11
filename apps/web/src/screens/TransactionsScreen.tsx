@@ -51,7 +51,7 @@ export const TransactionsScreen = ({
   hasMore,
   loadingMore,
 }: TransactionsScreenProps) => {
-  const toast = useToast();
+  const { showToast } = useToast();
   const location = useLocation();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
@@ -137,6 +137,8 @@ export const TransactionsScreen = ({
       note: note || undefined,
       occurredAt: new Date().toISOString(),
     });
+
+    showToast({ message: 'Movimiento registrado', type: 'success' });
 
     if (successTimerRef.current) {
       window.clearTimeout(successTimerRef.current);
@@ -227,7 +229,7 @@ export const TransactionsScreen = ({
                     setShowAddCategory(false);
                     setNewCategoryName('');
                   } catch (err) {
-                    toast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
+                    showToast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
                   } finally {
                     setCreatingCategory(false);
                   }
@@ -443,9 +445,10 @@ export const TransactionsScreen = ({
                             note: editNote || null,
                             occurredAt: new Date(editOccurredAt).toISOString(),
                           });
+                          showToast({ message: 'Movimiento actualizado', type: 'success' });
                           cancelEditing();
                         } catch (err) {
-                          toast({ message: err instanceof Error ? err.message : 'Error al actualizar', type: 'error' });
+                          showToast({ message: err instanceof Error ? err.message : 'Error al actualizar', type: 'error' });
                         }
                       }}
                     >
@@ -553,8 +556,9 @@ export const TransactionsScreen = ({
                                 if (!confirm('¿Eliminar este movimiento?')) return;
                                 try {
                                   await onDeleteTransaction(transaction.id);
+                                  showToast({ message: 'Movimiento eliminado', type: 'success' });
                                 } catch (err) {
-                                  toast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
+                                  showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
                                 }
                               }}
                             >

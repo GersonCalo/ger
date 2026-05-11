@@ -98,7 +98,7 @@ export const GroupsScreen = ({
   routeGroupId,
   onBackToList,
 }: GroupsScreenProps) => {
-  const toast = useToast();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [view, setView] = useState<'list' | 'detail'>('list');
@@ -538,8 +538,10 @@ export const GroupsScreen = ({
                         expenseId: editingExpenseId,
                         ...expenseInput,
                       });
+                      showToast({ message: 'Gasto actualizado', type: 'success' });
                     } else {
                       await onAddExpense(expenseInput);
+                      showToast({ message: 'Gasto añadido', type: 'success' });
                     }
 
                     resetExpenseForm();
@@ -614,7 +616,7 @@ export const GroupsScreen = ({
                                 setShowAddCategory(false);
                                 setNewCategoryName('');
                               } catch (err) {
-                                toast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
+                                showToast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
                               } finally {
                                 setCreatingCategory(false);
                               }
@@ -853,6 +855,7 @@ export const GroupsScreen = ({
                         amount,
                       });
 
+                      showToast({ message: 'Pago registrado', type: 'success' });
                       setSettlementAmount('');
                     }}
                   >
@@ -1032,11 +1035,12 @@ export const GroupsScreen = ({
                     <button
                       type="button"
                       className="button button--ghost button--small"
-                      onClick={() => {
-                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                          navigator.clipboard.writeText(selectedGroupJoinCode);
-                        }
-                      }}
+                        onClick={() => {
+                          if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                            navigator.clipboard.writeText(selectedGroupJoinCode);
+                            showToast({ message: 'Código copiado', type: 'success' });
+                          }
+                        }}
                     >
                       Copiar
                     </button>

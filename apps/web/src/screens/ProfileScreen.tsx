@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
+import { useToast } from '@/hooks/useToast';
 import { api } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import type { ApiHealth, AuthUser, Category } from '@/types';
@@ -26,6 +27,7 @@ const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', 
 const CATEGORY_ICONS = ['💰', '💼', '🎁', '📈', '🛍️', '🎮', '🛒', '🚌', '🍽️', '👕', '🏠', '🏥', '📚', '📺', '✈️', '🔧', '💻', '🎓', '🚗', '🏦'];
 
 export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBusy, onCreateCategory, onUpdateCategory, onDeleteCategory, isPushEnabled, isPushSupported, onSubscribeToPush, onUnsubscribeFromPush, theme, onSetTheme }: ProfileScreenProps) => {
+  const { showToast } = useToast();
   const [categoryTab, setCategoryTab] = useState<'income' | 'expense'>('expense');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -61,6 +63,7 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
     setError(null);
     try {
       await onCreateCategory({ name: formName.trim(), type: categoryTab, color: formColor, icon: formIcon });
+      showToast({ message: 'Categoría creada', type: 'success' });
       resetForm();
     } catch (err: any) {
       setError(err.message || 'Error creando categoría');
@@ -77,6 +80,7 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
     setError(null);
     try {
       await onUpdateCategory(editingCategory.id, { name: formName.trim(), color: formColor, icon: formIcon });
+      showToast({ message: 'Categoría actualizada', type: 'success' });
       resetForm();
     } catch (err: any) {
       setError(err.message || 'Error actualizando categoría');
@@ -90,6 +94,7 @@ export const ProfileScreen = ({ health, onLogout, user, categories, categoriesBu
     setError(null);
     try {
       await onDeleteCategory(id);
+      showToast({ message: 'Categoría eliminada', type: 'success' });
       setDeleteConfirm(null);
     } catch (err: any) {
       setError(err.message || 'Error eliminando categoría');

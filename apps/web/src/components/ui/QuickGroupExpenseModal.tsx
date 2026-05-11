@@ -47,7 +47,7 @@ export const QuickGroupExpenseModal = ({
   user,
   onAddExpense,
 }: QuickGroupExpenseModalProps) => {
-  const { toast } = useToast();
+  const { showToast } = useToast();
   const [step, setStep] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
 
@@ -177,11 +177,11 @@ export const QuickGroupExpenseModal = ({
         splits,
         occurredAt: new Date().toISOString(),
       });
-      toast({ message: 'Gasto de grupo añadido', type: 'success' });
+      showToast({ message: 'Gasto de grupo añadido', type: 'success' });
       resetForm();
       onClose();
     } catch (err) {
-      toast({ message: err instanceof Error ? err.message : 'Error al crear el gasto', type: 'error' });
+      showToast({ message: err instanceof Error ? err.message : 'Error al crear el gasto', type: 'error' });
     } finally {
       setBusy(false);
     }

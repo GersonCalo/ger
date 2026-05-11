@@ -15,7 +15,7 @@ type DashboardLayoutProps = {
 export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const toast = useToast();
+  const { showToast } = useToast();
   const { title, subtitle } = getRouteMeta(location.pathname);
 
   const [groupExpenseModalOpen, setGroupExpenseModalOpen] = useState(false);
@@ -33,7 +33,7 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
       navigate(`/groups/${financeApp.selectedGroupId}?tab=payments`);
     } else {
       navigate('/groups');
-      toast({ message: 'Selecciona un grupo para registrar una liquidación.', type: 'info' });
+      showToast({ message: 'Selecciona un grupo para registrar una liquidación.', type: 'info' });
     }
   };
 
