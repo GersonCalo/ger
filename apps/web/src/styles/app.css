@@ -2031,6 +2031,13 @@ select.field__input option {
   flex-direction: column-reverse;
   align-items: center;
   gap: var(--s-2);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.fab--hidden {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
 }
 
 .fab__button {

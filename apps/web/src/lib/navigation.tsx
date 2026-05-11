@@ -1,4 +1,6 @@
 import type { AppTab } from '@/types';
+export { shouldShowFab, getFabRoutePolicy, FAB_ALLOWED_ROUTES, FAB_BLOCKED_ROUTES } from './fabVisibility';
+export type { FabUiState } from './fabVisibility';
 
 export type NavSection = {
   id: AppTab | 'budgets' | 'recurring';
@@ -156,6 +158,4 @@ export const getRouteMeta = (pathname: string) => {
   return { title: section.title, subtitle: section.subtitle };
 };
 
-export const shouldShowFab = (pathname: string) => {
-  return getSectionByPathname(pathname).showFab;
-};
+

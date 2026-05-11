@@ -8,6 +8,7 @@ import { TransactionEditSheet } from '@/components/transactions/TransactionEditS
 import { SwipeableTransactionRow } from '@/components/transactions/SwipeableTransactionRow';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
+import { useFabBlockedState } from '@/routes/DashboardLayout';
 import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
 
 const ACTIONS_WIDTH = 140;
@@ -57,6 +58,7 @@ export const TransactionsScreen = ({
 }: TransactionsScreenProps) => {
   const { showToast } = useToast();
   const location = useLocation();
+  const { setFabBlockedState } = useFabBlockedState();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -90,6 +92,14 @@ export const TransactionsScreen = ({
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    setFabBlockedState({
+      isTransactionCreateOpen: isCreateModalOpen,
+      isTransactionEditOpen: isEditOpen,
+      isTransactionDeleteConfirmOpen: !!deleteConfirmTx,
+    });
+  }, [isCreateModalOpen, isEditOpen, deleteConfirmTx, setFabBlockedState]);
 
   const handleApplyFilters = () => {
     const newFilters: TransactionListFilters = {};

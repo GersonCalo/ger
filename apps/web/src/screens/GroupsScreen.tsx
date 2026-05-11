@@ -6,6 +6,7 @@ import { StatCard } from '@/components/StatCard';
 import { formatDate, formatMoney } from '@/lib/format';
 import { summarizeTransactions } from '@/lib/groups';
 import { useToast } from '@/hooks/useToast';
+import { useFabBlockedState } from '@/routes/DashboardLayout';
 import type { AuthUser, GroupBalancesPayload, GroupExpense, GroupExpenseSplitInput, GroupSummary, Category } from '@/types';
 
 const CATEGORY_COLORS = ['#EC4899', '#22C55E', '#3B82F6', '#F97316', '#A855F7', '#64748B', '#EF4444', '#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6'];
@@ -101,6 +102,7 @@ export const GroupsScreen = ({
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { setFabBlockedState } = useFabBlockedState();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [detailTab, setDetailTab] = useState<'summary' | 'expenses' | 'payments' | 'settings'>('summary');
   const [showGroupActions, setShowGroupActions] = useState(false);
@@ -140,6 +142,13 @@ export const GroupsScreen = ({
       setView('detail');
     }
   }, [routeGroupId]);
+
+  useEffect(() => {
+    setFabBlockedState({
+      isGroupFormOpen: showGroupActions,
+      isGroupExpenseEditing: !!editingExpenseId,
+    });
+  }, [showGroupActions, editingExpenseId, setFabBlockedState]);
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
