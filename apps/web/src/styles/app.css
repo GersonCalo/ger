@@ -181,8 +181,8 @@ a {
 
 .app-header__menu-btn {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
@@ -192,6 +192,11 @@ a {
 
 .app-header__menu-btn:hover {
   background: var(--surface);
+}
+
+.app-header__menu-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .app-header__menu-btn svg {
@@ -420,6 +425,11 @@ a {
   cursor: not-allowed;
 }
 
+.button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .button--primary {
   background: var(--brand);
   color: #FFFFFF;
@@ -445,7 +455,7 @@ a {
 
 .button--small {
   width: auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 var(--s-3);
   font-size: var(--text-sm);
 }
@@ -535,6 +545,7 @@ select.field__input option {
 }
 
 .field__action {
+  min-height: 44px;
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--brand);
@@ -548,6 +559,11 @@ select.field__input option {
 
 .field__action:hover {
   background: var(--surface);
+}
+
+.field__action:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .field__inline-row {
@@ -613,7 +629,7 @@ select.field__input option {
 }
 
 .segmented-control__item {
-  min-height: 40px;
+  min-height: 44px;
   border: none;
   border-radius: var(--radius-full);
   background: transparent;
@@ -626,6 +642,11 @@ select.field__input option {
 .segmented-control__item--active {
   background: var(--text-primary);
   color: var(--bg);
+}
+
+.segmented-control__item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .segmented-control--triple {
@@ -988,6 +1009,8 @@ select.field__input option {
 }
 
 .bottom-nav__item {
+  min-height: 44px;
+  min-width: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1003,6 +1026,11 @@ select.field__input option {
 
 .bottom-nav__item--active {
   color: var(--brand);
+}
+
+.bottom-nav__item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .bottom-nav__icon {
@@ -1125,6 +1153,7 @@ select.field__input option {
 
 .category-tabs__btn {
   flex: 1;
+  min-height: 44px;
   padding: var(--s-2) var(--s-3);
   border: none;
   background: transparent;
@@ -1138,6 +1167,11 @@ select.field__input option {
 .category-tabs__btn--active {
   background: var(--text-primary);
   color: var(--bg);
+}
+
+.category-tabs__btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .category-form {
@@ -1197,8 +1231,8 @@ select.field__input option {
 }
 
 .category-form__option {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 2px solid var(--divider);
   border-radius: var(--radius-full);
   font-size: var(--text-lg);
@@ -1215,9 +1249,14 @@ select.field__input option {
   background: var(--brand);
 }
 
+.category-form__option:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .category-form__color {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 2px solid var(--divider);
   border-radius: var(--radius-full);
   transition: all var(--transition);
@@ -1400,6 +1439,8 @@ select.field__input option {
 }
 
 .balance-chart__period-btn {
+  min-height: 44px;
+  min-width: 44px;
   padding: var(--s-1) var(--s-3);
   border: none;
   border-radius: var(--radius-full);
@@ -1408,7 +1449,6 @@ select.field__input option {
   font-size: var(--text-xs);
   font-weight: 600;
   transition: all var(--transition);
-  min-width: 36px;
   text-align: center;
 }
 
@@ -1419,6 +1459,11 @@ select.field__input option {
 
 .balance-chart__period-btn:hover:not(.balance-chart__period-btn--active) {
   color: var(--text-primary);
+}
+
+.balance-chart__period-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .balance-chart__svg-wrapper {
@@ -1554,6 +1599,8 @@ select.field__input option {
 }
 
 .toast__action {
+  min-height: 44px;
+  min-width: 44px;
   padding: var(--s-1) var(--s-2);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
@@ -1570,9 +1617,14 @@ select.field__input option {
   background: var(--surface);
 }
 
+.toast__action:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .toast__close {
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-full);
@@ -1584,6 +1636,11 @@ select.field__input option {
 .toast__close:hover {
   background: var(--surface);
   color: var(--text-primary);
+}
+
+.toast__close:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .toast__close svg {
@@ -1701,8 +1758,8 @@ select.field__input option {
 }
 
 .modal-header__close {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-full);
@@ -1713,6 +1770,11 @@ select.field__input option {
 .modal-header__close:hover {
   background: var(--surface);
   color: var(--text-primary);
+}
+
+.modal-header__close:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .modal-header__close svg {
@@ -1868,7 +1930,7 @@ select.field__input option {
 }
 
 .button--sm {
-  min-height: 32px;
+  min-height: 44px;
   padding: 0 var(--s-2);
   font-size: var(--text-xs);
 }
@@ -1982,6 +2044,7 @@ select.field__input option {
   align-items: center;
   gap: var(--s-3);
   width: 100%;
+  min-height: 44px;
   padding: var(--s-3) var(--s-4);
   border: none;
   border-radius: 0;
@@ -2004,6 +2067,11 @@ select.field__input option {
 
 .drawer-nav__item:hover {
   background: var(--surface);
+}
+
+.drawer-nav__item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .drawer-nav__icon {
