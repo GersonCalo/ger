@@ -5,9 +5,12 @@ import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { Modal } from '@/components/ui/Modal';
 import { TransactionEditSheet } from '@/components/transactions/TransactionEditSheet';
+import { SwipeableTransactionRow } from '@/components/transactions/SwipeableTransactionRow';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
 import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
+
+const ACTIONS_WIDTH = 140;
 
 type TransactionsScreenProps = {
   busy: boolean;
@@ -74,6 +77,10 @@ export const TransactionsScreen = ({
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  const [openSwipeRowId, setOpenSwipeRowId] = useState<string | null>(null);
+  const [deleteConfirmTx, setDeleteConfirmTx] = useState<Transaction | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const successTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -104,6 +111,7 @@ export const TransactionsScreen = ({
   };
 
   const openEdit = (transaction: Transaction) => {
+    setOpenSwipeRowId(null);
     setEditTransaction(transaction);
     setIsEditOpen(true);
   };
@@ -111,6 +119,37 @@ export const TransactionsScreen = ({
   const closeEdit = () => {
     setIsEditOpen(false);
     setEditTransaction(null);
+  };
+
+  const openDeleteConfirm = (transaction: Transaction) => {
+    setOpenSwipeRowId(null);
+    setDeleteConfirmTx(transaction);
+  };
+
+  const closeDeleteConfirm = () => {
+    setDeleteConfirmTx(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmTx) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteTransaction(deleteConfirmTx.id);
+      showToast({ message: 'Movimiento eliminado', type: 'success' });
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmTx(null);
+    }
+  };
+
+  const handleSwipeOpen = (id: string) => {
+    setOpenSwipeRowId(id);
+  };
+
+  const handleSwipeClose = () => {
+    setOpenSwipeRowId(null);
   };
 
   const resetCreateForm = () => {
@@ -303,6 +342,37 @@ export const TransactionsScreen = ({
         {createFormContent}
       </Modal>
 
+      <Modal
+        isOpen={!!deleteConfirmTx}
+        onClose={closeDeleteConfirm}
+        title="Eliminar movimiento"
+        size="sm"
+      >
+        <div className="delete-confirm">
+          <p className="delete-confirm__text">
+            ¿Estás seguro de que quieres eliminar este movimiento? Esta acción no se puede deshacer.
+          </p>
+          <div className="delete-confirm__actions">
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={closeDeleteConfirm}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <SectionCard title="Historial">
         <div className="filters-stack">
           <div className="segmented-control segmented-control--triple">
@@ -423,8 +493,10 @@ export const TransactionsScreen = ({
                     ? `Liquidación · ${transaction.groupName || 'Grupo'}`
                     : 'Manual';
 
-              return (
-                <article key={transaction.id} className="list-row list-row--stacked">
+              const isOpen = openSwipeRowId === transaction.id;
+
+              const rowContent = (
+                <article className="list-row list-row--stacked">
                   <div className="list-row__content">
                     <div className="list-row__title">
                       {transaction.category ? (
@@ -454,15 +526,7 @@ export const TransactionsScreen = ({
                         <button
                           type="button"
                           className="button button--ghost button--small button--danger"
-                          onClick={async () => {
-                            if (!confirm('¿Eliminar este movimiento?')) return;
-                            try {
-                              await onDeleteTransaction(transaction.id);
-                              showToast({ message: 'Movimiento eliminado', type: 'success' });
-                            } catch (err) {
-                              showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
-                            }
-                          }}
+                          onClick={() => openDeleteConfirm(transaction)}
                         >
                           Eliminar
                         </button>
@@ -474,6 +538,41 @@ export const TransactionsScreen = ({
                     </div>
                   </div>
                 </article>
+              );
+
+              return (
+                <SwipeableTransactionRow
+                  key={transaction.id}
+                  id={transaction.id}
+                  isOpen={isOpen}
+                  onOpen={handleSwipeOpen}
+                  onClose={handleSwipeClose}
+                  actionsWidth={ACTIONS_WIDTH}
+                  actions={
+                    transaction.locked ? null : (
+                      <div className="swipeable-actions">
+                        <button
+                          type="button"
+                          className="swipeable-action swipeable-action--edit"
+                          onClick={() => openEdit(transaction)}
+                          aria-label="Editar movimiento"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="swipeable-action swipeable-action--delete"
+                          onClick={() => openDeleteConfirm(transaction)}
+                          aria-label="Eliminar movimiento"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    )
+                  }
+                >
+                  {rowContent}
+                </SwipeableTransactionRow>
               );
             })}
 

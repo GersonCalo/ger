@@ -15,9 +15,11 @@
     "prisma:push": "npm run prisma:db-push --workspace=apps/api",
     "test": "npm run test --workspace=apps/web --workspace=apps/api",
     "test:run": "npm run test:run --workspace=apps/web --workspace=apps/api",
-    "test:coverage": "npm run test:coverage --workspace=apps/web --workspace=apps/api"
+    "test:coverage": "npm run test:coverage --workspace=apps/web --workspace=apps/api",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@vitest/coverage-v8": "^4.1.5",
     "vitest": "^4.1.5"
   }

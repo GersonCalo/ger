@@ -2126,6 +2126,119 @@ select.field__input option {
 }
 
 /* ============================================
+   Swipeable Transaction Rows
+   ============================================ */
+
+.swipeable-row {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.swipeable-row__actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.swipeable-actions {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.swipeable-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #fff;
+  transition: opacity 0.15s ease;
+  min-height: 44px;
+  pointer-events: auto;
+}
+
+.swipeable-action:active {
+  opacity: 0.8;
+}
+
+.swipeable-action:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.swipeable-action--edit {
+  background: var(--brand);
+}
+
+.swipeable-action--delete {
+  background: var(--negative);
+}
+
+.swipeable-row__content {
+  position: relative;
+  z-index: 1;
+  background: var(--bg);
+  will-change: transform;
+  touch-action: pan-y;
+}
+
+.swipeable-row__content > .list-row {
+  margin: 0;
+  border-radius: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swipeable-row__actions {
+    display: none !important;
+  }
+
+  .swipeable-row__content {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .swipeable-row {
+    touch-action: auto;
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+}
+
+/* ============================================
+   Delete Confirmation
+   ============================================ */
+
+.delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.delete-confirm__text {
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.delete-confirm__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* ============================================
    Responsive (tablet+)
    ============================================ */
 
