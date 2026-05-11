@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { Modal } from '@/components/ui/Modal';
+import { TransactionEditSheet } from '@/components/transactions/TransactionEditSheet';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
 import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
@@ -63,12 +64,8 @@ export const TransactionsScreen = ({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editType, setEditType] = useState<'income' | 'expense'>('expense');
-  const [editAmount, setEditAmount] = useState('');
-  const [editCategoryId, setEditCategoryId] = useState('');
-  const [editNote, setEditNote] = useState('');
-  const [editOccurredAt, setEditOccurredAt] = useState('');
+  const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>(filters?.type ?? 'all');
   const [filterOrigin, setFilterOrigin] = useState<'all' | 'manual' | 'group'>(filters?.origin ?? 'all');
@@ -106,17 +103,14 @@ export const TransactionsScreen = ({
     await onApplyFilters({});
   };
 
-  const startEditing = (transaction: Transaction) => {
-    setEditingId(transaction.id);
-    setEditType(transaction.type);
-    setEditAmount(transaction.amount);
-    setEditCategoryId(transaction.categoryId || '');
-    setEditNote(transaction.note || '');
-    setEditOccurredAt(new Date(transaction.occurredAt).toISOString().slice(0, 16));
+  const openEdit = (transaction: Transaction) => {
+    setEditTransaction(transaction);
+    setIsEditOpen(true);
   };
 
-  const cancelEditing = () => {
-    setEditingId(null);
+  const closeEdit = () => {
+    setIsEditOpen(false);
+    setEditTransaction(null);
   };
 
   const resetCreateForm = () => {
@@ -430,149 +424,55 @@ export const TransactionsScreen = ({
                     : 'Manual';
 
               return (
-                <article key={transaction.id} className={`list-row list-row--stacked ${editingId === transaction.id ? 'list-row--editing' : ''}`}>
-                  {editingId === transaction.id ? (
-                    <form
-                      className="form-stack form-stack--inline"
-                      onSubmit={async event => {
-                        event.preventDefault();
-                        try {
-                          await onUpdateTransaction({
-                            id: transaction.id,
-                            type: editType,
-                            amount: Number(editAmount),
-                            categoryId: editCategoryId || null,
-                            note: editNote || null,
-                            occurredAt: new Date(editOccurredAt).toISOString(),
-                          });
-                          showToast({ message: 'Movimiento actualizado', type: 'success' });
-                          cancelEditing();
-                        } catch (err) {
-                          showToast({ message: err instanceof Error ? err.message : 'Error al actualizar', type: 'error' });
-                        }
-                      }}
-                    >
-                      <div className="segmented-control">
+                <article key={transaction.id} className="list-row list-row--stacked">
+                  <div className="list-row__content">
+                    <div className="list-row__title">
+                      {transaction.category ? (
+                        <span className="category-tag">
+                          {transaction.category.icon ? `${transaction.category.icon} ` : ''}
+                          {transaction.category.name}
+                        </span>
+                      ) : (
+                        transaction.type === 'income' ? 'Ingreso' : 'Gasto'
+                      )}
+                    </div>
+                    <div className="list-row__meta">
+                      {formatDate(transaction.occurredAt)} · {sourceLabel}
+                    </div>
+                    {transaction.note ? <div className="list-row__note">{transaction.note}</div> : null}
+                  </div>
+                  <div className="list-actions">
+                    {transaction.locked ? <div className="chip">Grupo</div> : (
+                      <>
                         <button
                           type="button"
-                          className={`segmented-control__item ${editType === 'expense' ? 'segmented-control__item--active' : ''}`}
-                          onClick={() => setEditType('expense')}
+                          className="button button--ghost button--small"
+                          onClick={() => openEdit(transaction)}
                         >
-                          Gasto
+                          Editar
                         </button>
                         <button
                           type="button"
-                          className={`segmented-control__item ${editType === 'income' ? 'segmented-control__item--active' : ''}`}
-                          onClick={() => setEditType('income')}
+                          className="button button--ghost button--small button--danger"
+                          onClick={async () => {
+                            if (!confirm('¿Eliminar este movimiento?')) return;
+                            try {
+                              await onDeleteTransaction(transaction.id);
+                              showToast({ message: 'Movimiento eliminado', type: 'success' });
+                            } catch (err) {
+                              showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
+                            }
+                          }}
                         >
-                          Ingreso
+                          Eliminar
                         </button>
-                      </div>
-                      <label className="field field--amount">
-                        <span className="field__label">Monto</span>
-                        <input
-                          className="field__input field__input--amount"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={editAmount}
-                          onChange={e => setEditAmount(e.target.value)}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field__label">Categoría</span>
-                        <select
-                          className="field__input"
-                          value={editCategoryId}
-                          onChange={e => setEditCategoryId(e.target.value)}
-                        >
-                          <option value="">Sin categoría</option>
-                          {categories
-                            .filter(c => c.type === editType && c.groupId === null)
-                            .map(c => (
-                              <option key={c.id} value={c.id}>
-                                {c.icon ? `${c.icon} ` : ''}{c.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <label className="field">
-                        <span className="field__label">Nota</span>
-                        <input
-                          className="field__input"
-                          type="text"
-                          placeholder="Opcional"
-                          value={editNote}
-                          onChange={e => setEditNote(e.target.value)}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field__label">Fecha</span>
-                        <input
-                          className="field__input"
-                          type="datetime-local"
-                          value={editOccurredAt}
-                          onChange={e => setEditOccurredAt(e.target.value)}
-                        />
-                      </label>
-                      <div className="inline-actions">
-                        <button type="submit" className="button button--primary button--small">Guardar</button>
-                        <button type="button" className="button button--ghost button--small" onClick={cancelEditing}>Cancelar</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="list-row__content">
-                        <div className="list-row__title">
-                          {transaction.category ? (
-                            <span className="category-tag">
-                              {transaction.category.icon ? `${transaction.category.icon} ` : ''}
-                              {transaction.category.name}
-                            </span>
-                          ) : (
-                            transaction.type === 'income' ? 'Ingreso' : 'Gasto'
-                          )}
-                        </div>
-                        <div className="list-row__meta">
-                          {formatDate(transaction.occurredAt)} · {sourceLabel}
-                        </div>
-                        {transaction.note ? <div className="list-row__note">{transaction.note}</div> : null}
-                      </div>
-                      <div className="list-actions">
-                        {transaction.locked ? <div className="chip">Grupo</div> : (
-                          <>
-                            <button
-                              type="button"
-                              className="button button--ghost button--small"
-                              onClick={() => startEditing(transaction)}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              className="button button--ghost button--small button--danger"
-                              onClick={async () => {
-                                if (!confirm('¿Eliminar este movimiento?')) return;
-                                try {
-                                  await onDeleteTransaction(transaction.id);
-                                  showToast({ message: 'Movimiento eliminado', type: 'success' });
-                                } catch (err) {
-                                  showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
-                                }
-                              }}
-                            >
-                              Eliminar
-                            </button>
-                          </>
-                        )}
-                        <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
-                          {transaction.type === 'income' ? '+' : '-'}
-                          {formatMoney(amountValue, user.currency)}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                      </>
+                    )}
+                    <div className={`amount-pill ${transaction.type === 'income' ? 'amount-pill--positive' : 'amount-pill--negative'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}
+                      {formatMoney(amountValue, user.currency)}
+                    </div>
+                  </div>
                 </article>
               );
             })}
@@ -592,6 +492,15 @@ export const TransactionsScreen = ({
           </div>
         )}
       </SectionCard>
+
+      <TransactionEditSheet
+        isOpen={isEditOpen}
+        transaction={editTransaction}
+        categories={categories}
+        busy={busy}
+        onSave={onUpdateTransaction}
+        onClose={closeEdit}
+      />
     </div>
   );
 };

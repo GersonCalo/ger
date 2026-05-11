@@ -1811,13 +1811,52 @@ select.field__input option {
 }
 
 /* ============================================
-   Form Inline
-   ============================================ */
+    Form Inline
+    ============================================ */
 
 .form-stack--inline {
   padding: var(--s-3);
   border-radius: var(--radius-md);
   background: var(--surface);
+}
+
+/* ============================================
+    Transaction Edit Sheet
+    ============================================ */
+
+.edit-tx-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.edit-tx-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* ============================================
+    Discard Confirmation
+    ============================================ */
+
+.discard-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.discard-confirm__text {
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.discard-confirm__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
 }
 
 /* ============================================
@@ -1854,18 +1893,8 @@ select.field__input option {
 }
 
 /* ============================================
-   List Row Editing
-   ============================================ */
-
-.list-row--editing {
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  margin: var(--s-2) 0;
-}
-
-/* ============================================
-   Split Summary Meta
-   ============================================ */
+    Split Summary Meta
+    ============================================ */
 
 .split-summary__meta {
   font-size: var(--text-sm);

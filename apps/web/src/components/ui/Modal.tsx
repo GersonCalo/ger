@@ -25,7 +25,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       setMounted(false);
       document.body.style.overflow = '';
       if (previouslyFocused.current) {
-        previouslyFocused.current.focus();
+        previouslyFocused.current.focus({ preventScroll: true });
       }
     }
 
