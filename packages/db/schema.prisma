@@ -8,6 +8,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum BudgetPeriod {
+  monthly
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -20,6 +24,7 @@ model User {
   groups       Group[]  @relation("UserGroups")
   memberships  GroupMember[] @relation("UserMember")
   categories   Category[]
+  budgets      Budget[]
   pushSubscriptions PushSubscription[]
 }
 
@@ -36,6 +41,7 @@ model Category {
   
   personalTransactions PersonalTransaction[]
   groupExpenses        GroupExpense[]
+  budgets              Budget[]
 
   @@unique([name, userId, groupId])
   @@index([userId])
@@ -184,4 +190,22 @@ model PushSubscription {
 
   @@unique([userId, endpoint])
   @@index([userId])
+}
+
+model Budget {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+  amount     Float
+  period     BudgetPeriod
+  month      Int
+  year       Int
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([userId, categoryId, month, year, period])
+  @@index([userId, year, month])
+  @@index([categoryId])
 }

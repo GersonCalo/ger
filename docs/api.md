@@ -53,6 +53,12 @@ Base URL local: http://localhost:8080
 - `GET /push/vapid-public-key`
 - `POST /push/subscribe`
 
+## Presupuestos
+- `GET /budgets`
+- `POST /budgets`
+- `PATCH /budgets/:id`
+- `DELETE /budgets/:id`
+
 ---
 
 ## Notas generales
@@ -121,3 +127,23 @@ Base URL local: http://localhost:8080
 ### Sincronización frontend
 - El frontend refresca automáticamente grupos y saldo consolidado cada **10 segundos** mientras la pestaña está visible.
 - También refresca inmediatamente al recuperar foco o visibilidad de ventana.
+
+### Presupuestos
+- `GET /budgets` lista los presupuestos del usuario autenticado. Soporta filtros opcionales por query params:
+  - `month` — mes (1-12)
+  - `year` — año (2020-2099)
+  - `period` — periodo (`monthly`)
+  - `categoryId` — ID de categoría personal del usuario
+  - Respuesta: `{ budgets[] }`
+- `POST /budgets` crea un presupuesto. Body: `{ categoryId, amount, period: 'monthly', month, year }`.
+  - `amount` debe ser mayor que 0.
+  - `categoryId` debe ser una categoría personal del usuario (no globales ni de grupo).
+  - Respuesta 201: `{ budget }`
+  - Error 409 si ya existe un presupuesto para la misma categoría/mes/año/periodo.
+- `PATCH /budgets/:id` edita un presupuesto propio. Body parcial: `{ categoryId?, amount?, period?, month?, year? }`.
+  - Valida que el presupuesto pertenezca al usuario (404 si no existe).
+  - Valida categoría personal si se cambia `categoryId`.
+  - Detecta conflictos de unicidad si se cambian campos que afectan la clave única (409).
+- `DELETE /budgets/:id` elimina un presupuesto propio.
+  - Respuesta 204 sin body.
+  - Error 404 si no existe o no pertenece al usuario.
