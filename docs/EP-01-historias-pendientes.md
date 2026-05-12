@@ -1,6 +1,6 @@
 # EP-01 | Historias pendientes (Gap Analysis)
 
-## HD-01.6 | Visibilidad contextual del FAB por ruta y estado de pantalla
+## HD-01.6 | Visibilidad contextual del FAB por ruta y estado de pantalla DONE
 
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como usuario móvil, quiero que el FAB aparezca solo cuando realmente puedo crear algo, para evitar distracciones y toques accidentales.
@@ -19,7 +19,7 @@
 
 ---
 
-## HD-01.7 | Cierre del Drawer con gesto + hardening de accesibilidad
+## HD-01.7 | Cierre del Drawer con gesto + hardening de accesibilidad DONE
 
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como usuario móvil, quiero poder cerrar el menú lateral con gesto (swipe), para usar la app de forma más natural con una mano.
@@ -38,7 +38,7 @@
 
 ---
 
-## HD-01.8 | Ajuste de targets táctiles y accesibilidad mínima AA
+## HD-01.8 | Ajuste de targets táctiles y accesibilidad mínima AA DONE
 
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como usuario móvil, quiero que todos los controles clave sean fáciles de tocar y accesibles, para evitar errores y fatiga.
@@ -57,7 +57,7 @@
 
 ---
 
-## HD-01.9 | QA móvil cross-browser (2 breakpoints + 2 navegadores móviles)
+## HD-01.9 | QA móvil cross-browser (2 breakpoints + 2 navegadores móviles) DONE
 
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como equipo de producto, queremos validar la UX móvil en más de un navegador para evitar inconsistencias en producción.
@@ -77,7 +77,7 @@
 
 ---
 
-## HD-01.10 | Robustez del motor de Toasts + smoke tests de feedback crítico
+## HD-01.10 | Robustez del motor de Toasts + smoke tests de feedback crítico DONE
 
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como usuario, quiero que los mensajes de feedback sean confiables y consistentes, sin comportamientos raros de duración o desaparición.
@@ -98,9 +98,6 @@
 
 ## HD-01.11 | Alineación y mantenimiento de documentación de patrones móviles
 
-**Estado**: Completado
-**Fecha**: 2026-05-12
-
 ### Parte Product Owner (qué se quiere conseguir y para qué)
 - Como equipo, queremos documentación confiable y actualizada para que diseño, QA y dev trabajen con la misma verdad.
 - Queremos evitar desalineaciones entre lo que se documenta y lo que realmente hace la app.
@@ -115,12 +112,3 @@
   - Checklist de QA mobile incorporado y usable por testing.
   - Cambios documentales revisados por FE + QA.
   - Trazabilidad clara entre historia, implementación y evidencia de pruebas.
-
-### Evidencia de cumplimiento
-- `docs/mobile-ui-patterns.md` actualizado con:
-  - Umbrales corregidos (`SWIPE_THRESHOLD_RATIO` 0.25, `VERTICAL_LOCK_THRESHOLD` 10px, eliminación de `VELOCITY_THRESHOLD` inexistente).
-  - Sección "Fuente de verdad y última validación" con referencias a componentes, estilos, rutas y pruebas.
-  - 3 patrones documentados: Swipeable Row, Drawer Swipe Close, FAB Contextual.
-  - Checklists QA accionables con precondición + acción + resultado esperado.
-  - Matriz de trazabilidad Historia → Componente → Ruta → Prueba → Evidencia.
-  - Registro de revisión FE/QA.
