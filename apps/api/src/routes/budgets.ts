@@ -45,8 +45,11 @@ const assertCategoryOwnedByUser = async (categoryId: string, userId: string) => 
   const category = await prisma.category.findFirst({
     where: {
       id: categoryId,
-      userId: userId,
       groupId: null,
+      OR: [
+        { userId },
+        { userId: null },
+      ],
     },
   });
   return category;

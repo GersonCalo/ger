@@ -169,3 +169,32 @@ export type TransactionListResponse = {
   nextCursor: string | null;
   hasMore: boolean;
 };
+
+export type BudgetPeriod = 'monthly';
+
+export type Budget = {
+  id: string;
+  userId: string;
+  categoryId: string;
+  amount: number;
+  period: BudgetPeriod;
+  month: number;
+  year: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BudgetListFilters = {
+  month?: number;
+  year?: number;
+  period?: BudgetPeriod;
+  categoryId?: string;
+};
+
+export type CreateBudgetInput = {
+  categoryId: string;
+  amount: number;
+  period: BudgetPeriod;
+  month: number;
+  year: number;
+};

@@ -145,7 +145,20 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
               />
             }
           />
-          <Route path="budgets" element={<BudgetsScreen />} />
+          <Route
+            path="budgets"
+            element={
+              <BudgetsScreen
+                budgets={financeApp.budgets}
+                budgetsBusy={financeApp.budgetsBusy}
+                budgetsError={financeApp.budgetsError}
+                categories={financeApp.categories}
+                user={financeApp.user!}
+                onCreateBudget={financeApp.createBudget}
+                onRefreshBudgets={financeApp.refreshBudgets}
+              />
+            }
+          />
           <Route path="recurring" element={<RecurringScreen />} />
         </Route>
       </Route>

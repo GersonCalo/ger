@@ -261,6 +261,26 @@ describe('POST /budgets', () => {
     expect(result.status).toBe(409);
     expect(result.body.error.code).toBe('BUDGET_ALREADY_EXISTS');
   });
+
+  it('accepts global categories (userId: null, groupId: null)', async () => {
+    mockPrisma.category.findFirst.mockResolvedValue({ id: VALID_CATEGORY_ID, userId: null, groupId: null });
+    mockPrisma.budget.create.mockResolvedValue({
+      id: 'budget-global',
+      userId: 'user-1',
+      categoryId: VALID_CATEGORY_ID,
+      amount: 300,
+      period: 'monthly',
+      month: 6,
+      year: 2025,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await makeRequest('POST', '/budgets', validBody);
+
+    expect(result.status).toBe(201);
+    expect(result.body.budget.id).toBe('budget-global');
+  });
 });
 
 describe('PATCH /budgets/:id', () => {

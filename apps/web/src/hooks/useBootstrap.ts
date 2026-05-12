@@ -16,6 +16,8 @@ type UseBootstrapParams = {
   resetGroups: () => void;
   hydrateCategories: (next: any[]) => void;
   resetCategories: () => void;
+  hydrateBudgets: (next: any[]) => void;
+  resetBudgets: () => void;
 };
 
 export const useBootstrap = ({
@@ -32,6 +34,8 @@ export const useBootstrap = ({
   resetGroups,
   hydrateCategories,
   resetCategories,
+  hydrateBudgets,
+  resetBudgets,
 }: UseBootstrapParams) => {
   useEffect(() => {
     if (!token) return;
@@ -49,11 +53,12 @@ export const useBootstrap = ({
           api.groups(sessionToken),
           api.balance(sessionToken),
           api.getCategories(sessionToken),
+          api.getBudgets(sessionToken),
         ]);
 
         if (cancelled) return;
 
-        const [txRes, groupsRes, balanceRes, categoriesRes] = results;
+        const [txRes, groupsRes, balanceRes, categoriesRes, budgetsRes] = results;
         if (txRes.status === 'fulfilled' && balanceRes.status === 'fulfilled') {
           hydrateTransactions({
             transactions: txRes.value.transactions,
@@ -80,11 +85,18 @@ export const useBootstrap = ({
         } else {
           resetCategories();
         }
+
+        if (budgetsRes.status === 'fulfilled') {
+          hydrateBudgets(budgetsRes.value);
+        } else {
+          resetBudgets();
+        }
       } catch {
         logoutBase();
         resetTransactions();
         resetGroups();
         resetCategories();
+        resetBudgets();
         resetToHome();
       } finally {
         if (!cancelled) setBooting(false);
@@ -96,12 +108,14 @@ export const useBootstrap = ({
     };
   }, [
     clearSelectedGroup,
+    hydrateBudgets,
     hydrateCategories,
     hydrateGroups,
     hydrateTransactions,
     loadSession,
     logoutBase,
     refreshSelectedGroup,
+    resetBudgets,
     resetCategories,
     resetGroups,
     resetToHome,

@@ -2,7 +2,10 @@ import type {
   ApiHealth,
   AuthResponse,
   AuthUser,
+  Budget,
+  BudgetListFilters,
   Category,
+  CreateBudgetInput,
   GlobalBalancePayload,
   GroupBalancesPayload,
   GroupExpense,
@@ -24,7 +27,18 @@ const parseJson = async <T>(response: Response) => {
   const payload = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    const message = payload?.error?.message ?? payload?.message ?? `Error ${response.status}`;
+    const baseMessage = payload?.error?.message ?? payload?.message ?? `Error ${response.status}`;
+    const details = payload?.error?.details;
+    let message = baseMessage;
+
+    if (details?.issues && Array.isArray(details.issues)) {
+      const issueMessages = details.issues.map((issue: { path?: (string | number)[]; message?: string }) => {
+        const field = issue.path?.join('.') ?? 'campo';
+        return `${field}: ${issue.message ?? 'inválido'}`;
+      });
+      message = `${baseMessage}. ${issueMessages.join('; ')}`;
+    }
+
     throw new Error(message);
   }
 
@@ -444,5 +458,31 @@ export const api = {
 
     const data = await parseJson<{ settlement: GroupSettlement }>(response);
     return data.settlement;
+  },
+  async getBudgets(token: string, filters?: BudgetListFilters) {
+    const params = new URLSearchParams();
+    if (filters?.month !== undefined) params.set('month', String(filters.month));
+    if (filters?.year !== undefined) params.set('year', String(filters.year));
+    if (filters?.period !== undefined) params.set('period', filters.period);
+    if (filters?.categoryId !== undefined) params.set('categoryId', filters.categoryId);
+
+    const qs = params.toString();
+    const url = `${API_BASE}/budgets${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ budgets: Budget[] }>(response);
+    return data.budgets;
+  },
+  async createBudget(token: string, input: CreateBudgetInput) {
+    const response = await fetch(`${API_BASE}/budgets`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input),
+    });
+
+    const data = await parseJson<{ budget: Budget }>(response);
+    return data.budget;
   },
 };
