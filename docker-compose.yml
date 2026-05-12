@@ -47,12 +47,30 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.59.1-jammy
+    container_name: finanzas_e2e
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - CI=true
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - E2E_BASE_URL=http://web:3000
+      - E2E_API_URL=http://api:8080/api/v1
+    depends_on:
+      - web
+      - api
+    networks:
+      - default
+    command: ["npx", "playwright", "test", "--reporter=list,html,json,junit", "--timeout=60000"]
+
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+      VITE_API_URL: ${VITE_API_URL:-http://api:8080}
     ports:
       - "0.0.0.0:3000:3000"
     depends_on:

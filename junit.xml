@@ -1,0 +1,27 @@
+<testsuites id="" name="" tests="6" failures="0" skipped="0" errors="0" time="44.95774000000001">
+<testsuite name="drawer-swipe.spec.ts" timestamp="2026-05-12T16:55:16.729Z" hostname="android-small" tests="6" failures="0" skipped="0" time="21.07" errors="0">
+<testcase name="Drawer swipe gesture › opens drawer via menu button and closes with swipe on mobile" classname="drawer-swipe.spec.ts" time="2.122">
+</testcase>
+<testcase name="Drawer swipe gesture › closes drawer via Escape key" classname="drawer-swipe.spec.ts" time="1.527">
+</testcase>
+<testcase name="Drawer swipe gesture › closes drawer via backdrop tap" classname="drawer-swipe.spec.ts" time="1.451">
+</testcase>
+<testcase name="Drawer swipe gesture › closes drawer via nav item click" classname="drawer-swipe.spec.ts" time="1.551">
+</testcase>
+<testcase name="Drawer swipe gesture › does not close drawer on small swipe" classname="drawer-swipe.spec.ts" time="12.798">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/drawer-swipe-Drawer-swipe--434bb-close-drawer-on-small-swipe-android-small/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/drawer-swipe-Drawer-swipe--434bb-close-drawer-on-small-swipe-android-small/video.webm]]
+
+[[ATTACHMENT|test-results/drawer-swipe-Drawer-swipe--434bb-close-drawer-on-small-swipe-android-small/error-context.md]]
+
+[[ATTACHMENT|test-results/drawer-swipe-Drawer-swipe--434bb-close-drawer-on-small-swipe-android-small-retry1/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Drawer swipe gesture › menu button has correct aria-controls" classname="drawer-swipe.spec.ts" time="1.621">
+</testcase>
+</testsuite>
+</testsuites>

@@ -1,4 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
+
+async function waitForPageReady(page: import('@playwright/test').Page) {
+  await page.locator('.app-header__menu-btn').waitFor({ state: 'visible', timeout: 15000 });
+}
 
 const CRITICAL_SELECTORS = [
   { selector: '.app-header__menu-btn', label: 'Menú header' },
@@ -21,8 +25,9 @@ const MIN_TOUCH_TARGET = 44;
 test.describe('Touch targets 44x44', () => {
   test.describe('controles críticos', () => {
     for (const { selector, label } of CRITICAL_SELECTORS) {
-      test(`${label} >= ${MIN_TOUCH_TARGET}x${MIN_TOUCH_TARGET}px`, async ({ page }) => {
-        await page.goto('/dashboard');
+      test(`${label} >= ${MIN_TOUCH_TARGET}x${MIN_TOUCH_TARGET}px`, async ({ authenticatedPage: { page } }) => {
+        await page.goto('/');
+        await waitForPageReady(page);
 
         const el = page.locator(selector).first();
         const isVisible = await el.isVisible({ timeout: 5000 }).catch(() => false);
@@ -41,14 +46,14 @@ test.describe('Touch targets 44x44', () => {
   });
 
   test.describe('navegación por teclado en overlays', () => {
-    test('drawer atrapa foco y cierra con Escape', async ({ page }) => {
-      await page.goto('/dashboard');
+    test('drawer atrapa foco y cierra con Escape', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/');
+      await waitForPageReady(page);
 
-      const menuBtn = page.getByRole('button', { name: 'Abrir menú de navegación' });
-      await menuBtn.click();
+      await page.getByRole('button', { name: 'Abrir menú de navegación' }).click();
 
       const drawer = page.locator('#nav-drawer');
-      await expect(drawer).toBeVisible();
+      await expect(drawer).toBeVisible({ timeout: 8000 });
 
       const focusable = drawer.locator('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
       const count = await focusable.count();
@@ -58,18 +63,12 @@ test.describe('Touch targets 44x44', () => {
       await expect(drawer).not.toBeVisible();
     });
 
-    test('modal atrapa foco y cierra con Escape', async ({ page }) => {
-      await page.goto('/transactions');
+    test('modal atrapa foco y cierra con Escape', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/');
+      await waitForPageReady(page);
 
-      const createBtn = page.getByRole('button', { name: /crear|nuevo|agregar/i }).first();
-      if (await createBtn.isVisible().catch(() => false)) {
-        await createBtn.click();
-      } else {
-        const fab = page.locator('.fab__button');
-        if (await fab.isVisible().catch(() => false)) {
-          await fab.click();
-        }
-      }
+      await page.locator('.fab__button').click();
+      await page.getByRole('menuitem', { name: 'Crear nuevo movimiento personal' }).click();
 
       const modal = page.locator('[role="dialog"]').first();
       await expect(modal).toBeVisible({ timeout: 5000 }).catch(() => {
@@ -84,26 +83,18 @@ test.describe('Touch targets 44x44', () => {
       await expect(modal).not.toBeVisible();
     });
 
-    test('toast action es alcanzable por teclado', async ({ page }) => {
-      await page.goto('/transactions');
+    test('toast action es alcanzable por teclado', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/');
+      await waitForPageReady(page);
 
-      const createBtn = page.getByRole('button', { name: /crear|nuevo|agregar/i }).first();
-      if (await createBtn.isVisible().catch(() => false)) {
-        await createBtn.click();
-      } else {
-        const fab = page.locator('.fab__button');
-        if (await fab.isVisible().catch(() => false)) {
-          await fab.click();
-        }
-      }
+      await page.locator('.fab__button').click();
+      await page.getByRole('menuitem', { name: 'Crear nuevo movimiento personal' }).click();
 
-      const submitBtn = page.getByRole('button', { name: /guardar/i }).first();
-      if (await submitBtn.isVisible().catch(() => false)) {
-        await submitBtn.click();
-      }
+      await page.getByLabel('Monto').fill('1.00');
+      await page.keyboard.press('Enter');
 
       const toast = page.locator('.toast').first();
-      const toastVisible = await toast.isVisible({ timeout: 5000 }).catch(() => false);
+      const toastVisible = await toast.isVisible({ timeout: 10000 }).catch(() => false);
       if (!toastVisible) {
         test.skip(true, 'Toast no visible');
         return;
@@ -122,8 +113,9 @@ test.describe('Touch targets 44x44', () => {
   });
 
   test.describe('focus visible en controles críticos', () => {
-    test('botones muestran outline al enfocar con teclado', async ({ page }) => {
-      await page.goto('/dashboard');
+    test('botones muestran outline al enfocar con teclado', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/');
+      await waitForPageReady(page);
 
       const menuBtn = page.getByRole('button', { name: 'Abrir menú de navegación' });
       await menuBtn.focus();
@@ -136,8 +128,9 @@ test.describe('Touch targets 44x44', () => {
       expect(outline).not.toBe('none');
     });
 
-    test('items bottom nav muestran focus al navegar con Tab', async ({ page }) => {
-      await page.goto('/dashboard');
+    test('items bottom nav muestran focus al navegar con Tab', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/');
+      await waitForPageReady(page);
 
       const navItems = page.locator('.bottom-nav__item');
       const count = await navItems.count();

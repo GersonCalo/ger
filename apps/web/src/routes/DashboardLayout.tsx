@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
 import { FAB } from '@/components/ui/FAB';
@@ -35,9 +35,9 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
   const [groupExpenseModalOpen, setGroupExpenseModalOpen] = useState(false);
   const [fabBlockedState, setFabBlockedStateRaw] = useState<FabUiState>({});
 
-  const setFabBlockedState = (state: Partial<FabUiState>) => {
+  const setFabBlockedState = useCallback((state: Partial<FabUiState>) => {
     setFabBlockedStateRaw(prev => ({ ...prev, ...state }));
-  };
+  }, []);
 
   const handleOpenCreateTransaction = () => {
     navigate('/transactions', { state: { openCreateModal: true } });

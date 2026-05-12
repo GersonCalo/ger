@@ -7,3 +7,5 @@ build/
 *.log
 coverage/
 .prisma/
+playwright-report/
+test-results/
