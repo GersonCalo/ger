@@ -2356,6 +2356,30 @@ select.field__input option {
   margin-top: var(--s-1);
 }
 
+.budget-card {
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--divider);
+  background: transparent;
+}
+
+.budget-card:last-child {
+  border-bottom: none;
+}
+
+.budget-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.budget-card__amount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
 .budget-row {
   padding-top: var(--s-3);
   padding-bottom: var(--s-3);
