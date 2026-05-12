@@ -5,7 +5,7 @@
 
 ---
 
-## EP-01 | Mejora de experiencia movil base
+## EP-01 | Mejora de experiencia movil base DONE
 
 **Prioridad**: P0
 **Estado**: Propuesta
@@ -29,7 +29,7 @@
 
 ---
 
-## EP-02 | Presupuestos por categoria
+## EP-02 | Presupuestos por categoria IN PROGRES
 
 **Prioridad**: P1
 **Estado**: Propuesta
@@ -155,7 +155,7 @@
 
 ---
 
-## EP-07 | Refactor de arquitectura frontend
+## EP-07 | Refactor de arquitectura frontend DONE ✅
 
 **Prioridad**: P1
 **Estado**: Propuesta
