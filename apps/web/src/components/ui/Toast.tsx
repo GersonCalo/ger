@@ -16,16 +16,18 @@ type ToastItem = {
   action?: ToastAction;
 };
 
+type TimerMeta = {
+  timeoutId: ReturnType<typeof setTimeout> | null;
+  startedAt: number;
+  remainingMs: number;
+  isPaused: boolean;
+};
+
 export type ShowToastInput = {
   type: ToastType;
   message: string;
   duration?: number;
   action?: ToastAction;
-};
-
-type TimerEntry = {
-  timer: number;
-  remaining: number;
 };
 
 type ToastContextValue = {
@@ -58,34 +60,83 @@ export const useToast = () => {
 export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   const [visible, setVisible] = useState<ToastItem[]>([]);
   const [queue, setQueue] = useState<ToastItem[]>([]);
-  const timersRef = useRef<Map<string, TimerEntry>>(new Map());
+  const timersRef = useRef<Map<string, TimerMeta>>(new Map());
 
-  const removeToast = useCallback((id: string) => {
+  const clearTimer = useCallback((id: string) => {
+    const meta = timersRef.current.get(id);
+    if (meta && meta.timeoutId !== null) {
+      clearTimeout(meta.timeoutId);
+      meta.timeoutId = null;
+    }
+  }, []);
+
+  const startTimer = useCallback((id: string, durationMs: number, onExpire: (id: string) => void) => {
+    const now = Date.now();
+    const timeoutId = setTimeout(() => onExpire(id), durationMs);
+    timersRef.current.set(id, {
+      timeoutId,
+      startedAt: now,
+      remainingMs: durationMs,
+      isPaused: false,
+    });
+  }, []);
+
+  const pauseTimer = useCallback((id: string) => {
+    const meta = timersRef.current.get(id);
+    if (!meta || meta.isPaused || meta.timeoutId === null) return;
+    clearTimeout(meta.timeoutId);
+    meta.timeoutId = null;
+    const elapsed = Date.now() - meta.startedAt;
+    meta.remainingMs = Math.max(0, meta.remainingMs - elapsed);
+    meta.isPaused = true;
+  }, []);
+
+  const resumeTimer = useCallback((id: string, onExpire: (id: string) => void) => {
+    const meta = timersRef.current.get(id);
+    if (!meta || !meta.isPaused || meta.remainingMs <= 0) return;
+    const now = Date.now();
+    const timeoutId = setTimeout(() => onExpire(id), meta.remainingMs);
+    meta.timeoutId = timeoutId;
+    meta.startedAt = now;
+    meta.isPaused = false;
+  }, []);
+
+  const promoteFromQueue = useCallback(() => {
+    setQueue(prev => {
+      if (prev.length === 0) return prev;
+      setVisible(current => {
+        const slots = MAX_VISIBLE - current.length;
+        if (slots <= 0) return current;
+        const toPromote = prev.slice(0, slots);
+        return [...current, ...toPromote];
+      });
+      return prev.slice(MAX_VISIBLE);
+    });
+  }, []);
+
+  const handleExpire = useCallback((id: string) => {
+    timersRef.current.delete(id);
     setVisible(prev => {
       const next = prev.filter(t => t.id !== id);
       return next;
     });
-    const entry = timersRef.current.get(id);
-    if (entry) {
-      window.clearTimeout(entry.timer);
-      timersRef.current.delete(id);
-    }
-    setTimeout(() => {
-      setQueue(prev => {
-        if (prev.length === 0) return prev;
-        setVisible(current => {
-          const slots = MAX_VISIBLE - current.length;
-          if (slots <= 0) return current;
-          const toPromote = prev.slice(0, slots);
-          return [...current, ...toPromote];
-        });
-        return prev.slice(MAX_VISIBLE);
-      });
-    }, 0);
-  }, []);
+    setTimeout(() => promoteFromQueue(), 0);
+  }, [promoteFromQueue]);
+
+  const removeToast = useCallback((id: string) => {
+    clearTimer(id);
+    timersRef.current.delete(id);
+    setVisible(prev => {
+      const next = prev.filter(t => t.id !== id);
+      return next;
+    });
+    setTimeout(() => promoteFromQueue(), 0);
+  }, [clearTimer, promoteFromQueue]);
 
   const clearToasts = useCallback(() => {
-    timersRef.current.forEach(({ timer }) => window.clearTimeout(timer));
+    timersRef.current.forEach(({ timeoutId }) => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    });
     timersRef.current.clear();
     setVisible([]);
     setQueue([]);
@@ -98,21 +149,21 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
 
     setVisible(prev => {
       if (prev.length < MAX_VISIBLE) {
+        if (dur > 0) {
+          startTimer(id, dur, handleExpire);
+        }
         return [...prev, item];
       }
       setQueue(q => [...q, item]);
       return prev;
     });
-
-    if (dur > 0) {
-      const timer = window.setTimeout(() => removeToast(id), dur);
-      timersRef.current.set(id, { timer, remaining: dur });
-    }
-  }, [removeToast]);
+  }, [startTimer, handleExpire]);
 
   useEffect(() => {
     return () => {
-      timersRef.current.forEach(({ timer }) => window.clearTimeout(timer));
+      timersRef.current.forEach(({ timeoutId }) => {
+        if (timeoutId !== null) clearTimeout(timeoutId);
+      });
       timersRef.current.clear();
     };
   }, []);
@@ -127,33 +178,11 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
               key={t.id}
               className={`toast toast--${t.type}`}
               role={t.type === 'error' ? 'alert' : 'status'}
-              onMouseEnter={() => {
-                const entry = timersRef.current.get(t.id);
-                if (entry) {
-                  window.clearTimeout(entry.timer);
-                  entry.remaining = Math.max(0, entry.remaining - (t.duration - entry.remaining));
-                }
-              }}
-              onMouseLeave={() => {
-                const entry = timersRef.current.get(t.id);
-                if (entry && entry.remaining > 0) {
-                  const timer = window.setTimeout(() => removeToast(t.id), entry.remaining);
-                  entry.timer = timer;
-                }
-              }}
-              onPointerDown={() => {
-                const entry = timersRef.current.get(t.id);
-                if (entry) {
-                  window.clearTimeout(entry.timer);
-                }
-              }}
-              onPointerUp={() => {
-                const entry = timersRef.current.get(t.id);
-                if (entry && entry.remaining > 0) {
-                  const timer = window.setTimeout(() => removeToast(t.id), entry.remaining);
-                  entry.timer = timer;
-                }
-              }}
+              onMouseEnter={() => pauseTimer(t.id)}
+              onMouseLeave={() => resumeTimer(t.id, handleExpire)}
+              onPointerDown={() => pauseTimer(t.id)}
+              onPointerUp={() => resumeTimer(t.id, handleExpire)}
+              onPointerCancel={() => resumeTimer(t.id, handleExpire)}
             >
               <span className="toast__icon">
                 {t.type === 'success' && (

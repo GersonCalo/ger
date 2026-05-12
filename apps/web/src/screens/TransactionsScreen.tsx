@@ -147,7 +147,7 @@ export const TransactionsScreen = ({
       await onDeleteTransaction(deleteConfirmTx.id);
       showToast({ message: 'Movimiento eliminado', type: 'success' });
     } catch (err) {
-      showToast({ message: err instanceof Error ? err.message : 'Error al eliminar', type: 'error' });
+      showToast({ message: err instanceof Error ? err.message : 'No se pudo eliminar el movimiento', type: 'error' });
     } finally {
       setIsDeleting(false);
       setDeleteConfirmTx(null);
@@ -272,7 +272,7 @@ export const TransactionsScreen = ({
                     setShowAddCategory(false);
                     setNewCategoryName('');
                   } catch (err) {
-                    showToast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
+                    showToast({ message: err instanceof Error ? err.message : 'No se pudo crear la categoría', type: 'error' });
                   } finally {
                     setCreatingCategory(false);
                   }

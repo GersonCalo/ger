@@ -625,7 +625,7 @@ export const GroupsScreen = ({
                                 setShowAddCategory(false);
                                 setNewCategoryName('');
                               } catch (err) {
-                                showToast({ message: err instanceof Error ? err.message : 'Error al crear', type: 'error' });
+                                showToast({ message: err instanceof Error ? err.message : 'No se pudo crear la categoría', type: 'error' });
                               } finally {
                                 setCreatingCategory(false);
                               }

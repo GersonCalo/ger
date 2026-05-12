@@ -126,7 +126,7 @@ export const TransactionEditSheet = ({
         onClose();
       } catch (err) {
         showToast({
-          message: err instanceof Error ? err.message : 'Error al actualizar',
+          message: err instanceof Error ? err.message : 'No se pudo actualizar el movimiento',
           type: 'error',
         });
       }

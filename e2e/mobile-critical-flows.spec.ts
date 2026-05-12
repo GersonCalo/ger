@@ -160,5 +160,49 @@ test.describe('HD-01.9 | Critical mobile flows smoke', () => {
       await closeBtn.evaluate(el => (el as HTMLElement).click());
       await expect(page.locator('.toast--success')).not.toBeVisible({ timeout: 5000 });
     });
+
+    test('toast appears after editing transaction', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/transactions');
+      await waitForPageReady(page);
+      const firstRow = page.locator('.swipeable-row').first();
+      await swipeRowOpen(page, firstRow);
+      const editBtn = page.getByRole('button', { name: 'Editar movimiento' });
+      await editBtn.evaluate(el => (el as HTMLElement).click());
+      await expect(page.getByText('Editar movimiento')).toBeVisible();
+      await page.getByLabel('Monto').fill('99.99');
+      await page.getByRole('button', { name: 'Guardar cambios' }).click();
+      await expect(page.locator('.toast--success')).toBeVisible({ timeout: 10000 });
+    });
+
+    test('toast appears after deleting transaction', async ({ authenticatedPage: { page } }) => {
+      await page.goto('/transactions');
+      await waitForPageReady(page);
+      const firstRow = page.locator('.swipeable-row').first();
+      await swipeRowOpen(page, firstRow);
+      const deleteBtn = page.getByRole('button', { name: 'Eliminar movimiento' });
+      await deleteBtn.evaluate(el => (el as HTMLElement).click());
+      await expect(page.getByText('Eliminar movimiento')).toBeVisible();
+      await page.getByRole('button', { name: 'Eliminar' }).click();
+      await expect(page.locator('.toast--success')).toBeVisible({ timeout: 10000 });
+    });
+
+    test('error toast appears on API failure', async ({ authenticatedPage: { page } }) => {
+      await page.route('**/api/v1/transactions', async route => {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { message: 'Error interno del servidor' } }),
+        });
+      });
+
+      await page.locator('.fab__button').click();
+      await page.getByRole('menuitem', { name: 'Crear nuevo movimiento personal' }).click();
+      await expect(page.getByText('Nuevo movimiento')).toBeVisible();
+      await page.getByLabel('Monto').fill('10.00');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.toast--error')).toBeVisible({ timeout: 10000 });
+
+      await page.unroute('**/api/v1/transactions');
+    });
   });
 });
