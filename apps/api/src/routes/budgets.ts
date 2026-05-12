@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { sendError, zodIssuesDetails } from '../lib/apiError.js';
+import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
+import { fromCents, roundMoney, toCents } from '../lib/groupBalances.js';
 
 export const budgetsRouter = Router();
 
@@ -24,6 +26,8 @@ const createBudgetSchema = z.object({
   period: z.enum(['monthly']),
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2020).max(2099),
+  recurring: z.boolean().optional().default(false),
+  monthsCount: z.number().int().min(1).max(12).optional().default(3),
 });
 
 const updateBudgetSchema = z.object({
@@ -90,7 +94,59 @@ budgetsRouter.get('/budgets', requireAuth, async (_req, res) => {
     orderBy: [{ year: 'desc' }, { month: 'desc' }, { createdAt: 'desc' }],
   });
 
-  return res.json({ budgets });
+  if (month !== undefined && year !== undefined) {
+    await prisma.$transaction((tx) => syncUserGroupLedgerBackfill(tx, userId));
+
+    const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+
+    const categoryIds = [...new Set(budgets.map((b) => b.categoryId))];
+
+    const spentByCategory = categoryIds.length > 0
+      ? await prisma.personalTransaction.groupBy({
+          by: ['categoryId'],
+          where: {
+            userId,
+            type: 'expense' as const,
+            categoryId: { in: categoryIds },
+            occurredAt: { gte: monthStart, lt: monthEnd },
+          },
+          _sum: { amount: true },
+        })
+      : [];
+
+    const spentMap = new Map<string, number>();
+    for (const row of spentByCategory) {
+      if (row.categoryId && row._sum?.amount) {
+        spentMap.set(row.categoryId, roundMoney(Number(row._sum.amount.toString())));
+      }
+    }
+
+    const budgetsWithUsage = budgets.map((budget) => {
+      const spent = spentMap.get(budget.categoryId) ?? 0;
+      const available = roundMoney(budget.amount - spent);
+      const consumedPercent = budget.amount > 0 ? roundMoney((spent / budget.amount) * 100) : 0;
+      return {
+        ...budget,
+        spent,
+        available,
+        consumedPercent,
+        isOverBudget: available < 0,
+      };
+    });
+
+    return res.json({ budgets: budgetsWithUsage });
+  }
+
+  const budgetsWithDefaults = budgets.map((budget) => ({
+    ...budget,
+    spent: 0,
+    available: budget.amount,
+    consumedPercent: 0,
+    isOverBudget: false,
+  }));
+
+  return res.json({ budgets: budgetsWithDefaults });
 });
 
 budgetsRouter.post('/budgets', requireAuth, async (req, res) => {
@@ -106,26 +162,53 @@ budgetsRouter.post('/budgets', requireAuth, async (req, res) => {
     return sendError(res, 400, 'BUDGET_INVALID_CATEGORY', 'Categoría no encontrada o no tienes acceso a ella');
   }
 
-  try {
-    const budget = await prisma.budget.create({
-      data: {
-        userId,
-        categoryId: parsed.data.categoryId,
-        amount: parsed.data.amount,
-        period: parsed.data.period,
-        month: parsed.data.month,
-        year: parsed.data.year,
-      },
-      select: BUDGET_SELECT,
-    });
+  const budgets: Array<Record<string, unknown>> = [];
+  const duplicates: Array<{ month: number; year: number }> = [];
 
-    return res.status(201).json({ budget });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
+  const monthsToCreate = parsed.data.recurring ? parsed.data.monthsCount : 1;
+
+  for (let i = 0; i < monthsToCreate; i++) {
+    const targetMonth = parsed.data.month + i;
+    const adjustedMonth = ((targetMonth - 1) % 12) + 1;
+    const adjustedYear = parsed.data.year + Math.floor((targetMonth - 1) / 12);
+
+    if (adjustedYear > 2099) break;
+
+    try {
+      const budget = await prisma.budget.create({
+        data: {
+          userId,
+          categoryId: parsed.data.categoryId,
+          amount: parsed.data.amount,
+          period: parsed.data.period,
+          month: adjustedMonth,
+          year: adjustedYear,
+        },
+        select: BUDGET_SELECT,
+      });
+      budgets.push(budget);
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        duplicates.push({ month: adjustedMonth, year: adjustedYear });
+      } else {
+        return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
+      }
+    }
+  }
+
+  if (budgets.length === 0) {
+    if (duplicates.length > 0) {
       return sendError(res, 409, 'BUDGET_ALREADY_EXISTS', 'Ya existe un presupuesto para esta categoría en el periodo indicado');
     }
     return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Error interno del servidor');
   }
+
+  const response: { budgets: Array<Record<string, unknown>>; duplicates?: Array<{ month: number; year: number }> } = { budgets };
+  if (duplicates.length > 0) {
+    response.duplicates = duplicates;
+  }
+
+  return res.status(201).json(response);
 });
 
 budgetsRouter.patch('/budgets/:id', requireAuth, async (req, res) => {

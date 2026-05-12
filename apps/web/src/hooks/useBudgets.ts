@@ -40,28 +40,30 @@ export const useBudgets = ({ token }: UseBudgetsParams) => {
   );
 
   const createBudget = useCallback(
-    async (input: { categoryId: string; amount: number; month: number; year: number }) => {
+    async (input: { categoryId: string; amount: number; month: number; year: number; recurring?: boolean; monthsCount?: number }) => {
       if (!token) throw new Error('No auth');
       setBudgetsBusy(true);
       setBudgetsError(null);
       try {
-        const created = await api.createBudget(token, {
+        const result = await api.createBudget(token, {
           categoryId: input.categoryId,
           amount: input.amount,
           period: 'monthly',
           month: input.month,
           year: input.year,
+          recurring: input.recurring,
+          monthsCount: input.monthsCount,
         });
         setBudgets(prev => {
-          const exists = prev.some(b => b.id === created.id);
-          if (exists) return prev;
-          return [created, ...prev].sort((a, b) => {
+          const existingIds = new Set(prev.map(b => b.id));
+          const newBudgets = result.budgets.filter(b => !existingIds.has(b.id));
+          return [...prev, ...newBudgets].sort((a, b) => {
             if (a.year !== b.year) return b.year - a.year;
             if (a.month !== b.month) return b.month - a.month;
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
           });
         });
-        return created;
+        return result;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Error creando presupuesto';
         setBudgetsError(message);

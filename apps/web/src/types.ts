@@ -182,6 +182,10 @@ export type Budget = {
   year: number;
   createdAt: string;
   updatedAt: string;
+  spent: number;
+  available: number;
+  consumedPercent: number;
+  isOverBudget: boolean;
 };
 
 export type BudgetListFilters = {
@@ -197,4 +201,6 @@ export type CreateBudgetInput = {
   period: BudgetPeriod;
   month: number;
   year: number;
+  recurring?: boolean;
+  monthsCount?: number;
 };

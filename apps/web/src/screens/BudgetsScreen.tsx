@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { BudgetForm } from '@/components/budgets/BudgetForm';
 import { formatMoney } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
-import type { AuthUser, Budget, Category } from '@/types';
+import type { AuthUser, Budget, Category, Transaction } from '@/types';
 
 type BudgetsScreenProps = {
   budgets: Budget[];
@@ -12,14 +12,20 @@ type BudgetsScreenProps = {
   budgetsError: string | null;
   categories: Category[];
   user: AuthUser;
-  onCreateBudget: (input: { categoryId: string; amount: number; month: number; year: number }) => Promise<Budget>;
-  onRefreshBudgets: () => Promise<void>;
+  onCreateBudget: (input: { categoryId: string; amount: number; month: number; year: number; recurring?: boolean; monthsCount?: number }) => Promise<{ budgets: Budget[]; duplicates?: Array<{ month: number; year: number }> }>;
+  onRefreshBudgets: (options?: { silent?: boolean; filters?: { month?: number; year?: number; period?: 'monthly'; categoryId?: string } }) => Promise<void>;
+  transactions: Transaction[];
 };
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
+
+const getCurrentMonthYear = () => {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+};
 
 const getMonthLabel = (month: number) => MONTH_NAMES[month - 1] ?? String(month);
 
@@ -31,22 +37,31 @@ export const BudgetsScreen = ({
   user,
   onCreateBudget,
   onRefreshBudgets,
+  transactions,
 }: BudgetsScreenProps) => {
   const { showToast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
+  const { month: currentMonth, year: currentYear } = getCurrentMonthYear();
+  const prevTxCountRef = useRef(transactions.length);
 
   useEffect(() => {
-    if (!budgetsBusy && !budgetsError && budgets.length === 0) {
-      void onRefreshBudgets();
-    }
+    void onRefreshBudgets({ filters: { month: currentMonth, year: currentYear } });
   }, []);
+
+  useEffect(() => {
+    if (transactions.length !== prevTxCountRef.current) {
+      prevTxCountRef.current = transactions.length;
+      void onRefreshBudgets({ silent: true, filters: { month: currentMonth, year: currentYear } });
+    }
+  }, [transactions]);
 
   const handleCreateSuccess = () => {
     setModalOpen(false);
+    void onRefreshBudgets({ filters: { month: currentMonth, year: currentYear } });
   };
 
   const handleRefreshError = async () => {
-    await onRefreshBudgets();
+    await onRefreshBudgets({ filters: { month: currentMonth, year: currentYear } });
   };
 
   const sortedBudgets = [...budgets].sort((a, b) => {
@@ -60,11 +75,26 @@ export const BudgetsScreen = ({
     return cat ? `${cat.icon ? `${cat.icon} ` : ''}${cat.name}` : 'Sin categoría';
   };
 
+  const getProgressColor = (consumedPercent: number, isOverBudget: boolean) => {
+    if (isOverBudget) return 'budget-bar--over';
+    if (consumedPercent >= 100) return 'budget-bar--over';
+    if (consumedPercent >= 80) return 'budget-bar--warning';
+    return 'budget-bar--ok';
+  };
+
+  const getStatusLabel = (consumedPercent: number, isOverBudget: boolean) => {
+    if (isOverBudget) return 'Presupuesto excedido';
+    if (consumedPercent >= 100) return 'Límite alcanzado';
+    if (consumedPercent >= 80) return 'Cerca del límite';
+    return 'Dentro del presupuesto';
+  };
+
   return (
     <div className="screen-stack">
       <section className="screen-intro">
         <div className="screen-intro__eyebrow">Planificación</div>
         <h2 className="screen-intro__title">Presupuestos</h2>
+        <p className="screen-intro__body">{getMonthLabel(currentMonth)} {currentYear}</p>
       </section>
 
       <div className="section-card">
@@ -114,15 +144,40 @@ export const BudgetsScreen = ({
         ) : (
           <div className="list-stack">
             {sortedBudgets.map(budget => (
-              <article key={budget.id} className="list-row list-row--stacked">
+              <article key={budget.id} className="list-row list-row--stacked budget-row">
                 <div className="list-row__content">
                   <div className="list-row__title">
                     <span className="category-tag">
                       {getCategoryName(budget.categoryId)}
                     </span>
                   </div>
-                  <div className="list-row__meta">
-                    {getMonthLabel(budget.month)} {budget.year}
+                  <div className="budget-metrics">
+                    <div className="budget-metrics__row">
+                      <span className="budget-metrics__label">Gastado</span>
+                      <span className={`budget-metrics__value ${budget.isOverBudget ? 'budget-metrics__value--over' : ''}`}>
+                        {formatMoney(budget.spent, user.currency)}
+                      </span>
+                    </div>
+                    <div className="budget-metrics__row">
+                      <span className="budget-metrics__label">Disponible</span>
+                      <span className={`budget-metrics__value ${budget.isOverBudget ? 'budget-metrics__value--over' : ''}`}>
+                        {formatMoney(budget.available, user.currency)}
+                      </span>
+                    </div>
+                    <div className="budget-metrics__row">
+                      <span className="budget-metrics__label">Consumido</span>
+                      <span className="budget-metrics__value">{Math.round(budget.consumedPercent)}%</span>
+                    </div>
+                  </div>
+                  <div className="budget-bar-track" role="progressbar" aria-valuenow={Math.min(budget.consumedPercent, 100)} aria-valuemin={0} aria-valuemax={100} aria-label={getStatusLabel(budget.consumedPercent, budget.isOverBudget)}>
+                    <div
+                      className={`budget-bar ${getProgressColor(budget.consumedPercent, budget.isOverBudget)}`}
+                      style={{ width: `${Math.min(budget.consumedPercent, 100)}%` }}
+                    />
+                  </div>
+                  <div className="budget-status">
+                    <span className={`budget-status__dot ${getProgressColor(budget.consumedPercent, budget.isOverBudget)}`} />
+                    <span className="budget-status__text">{getStatusLabel(budget.consumedPercent, budget.isOverBudget)}</span>
                   </div>
                 </div>
                 <div className="list-row__actions">

@@ -482,7 +482,7 @@ export const api = {
       body: JSON.stringify(input),
     });
 
-    const data = await parseJson<{ budget: Budget }>(response);
-    return data.budget;
+    const data = await parseJson<{ budgets: Budget[]; duplicates?: Array<{ month: number; year: number }> }>(response);
+    return { budgets: data.budgets, duplicates: data.duplicates };
   },
 };

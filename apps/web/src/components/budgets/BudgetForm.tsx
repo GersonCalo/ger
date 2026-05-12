@@ -4,9 +4,14 @@ import type { Budget, Category } from '@/types';
 
 type BudgetFormProps = {
   categories: Category[];
-  onSubmit: (input: { categoryId: string; amount: number; month: number; year: number }) => Promise<Budget>;
+  onSubmit: (input: { categoryId: string; amount: number; month: number; year: number; recurring?: boolean; monthsCount?: number }) => Promise<{ budgets: Budget[]; duplicates?: Array<{ month: number; year: number }> }>;
   onSuccess: () => void;
 };
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
 
 const getCurrentMonthYear = () => {
   const now = new Date();
@@ -23,12 +28,16 @@ const fromMonthInputValue = (value: string) => {
   return { month, year };
 };
 
+const getMonthLabel = (month: number) => MONTH_NAMES[month - 1] ?? String(month);
+
 export const BudgetForm = ({ categories, onSubmit, onSuccess }: BudgetFormProps) => {
   const { showToast } = useToast();
   const [categoryId, setCategoryId] = useState('');
   const [amount, setAmount] = useState('');
   const defaultPeriod = getCurrentMonthYear();
   const [periodValue, setPeriodValue] = useState(toMonthInputValue(defaultPeriod.month, defaultPeriod.year));
+  const [recurring, setRecurring] = useState(false);
+  const [monthsCount, setMonthsCount] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const successTimerRef = useRef<number | null>(null);
@@ -39,6 +48,8 @@ export const BudgetForm = ({ categories, onSubmit, onSuccess }: BudgetFormProps)
     setAmount('');
     const next = getCurrentMonthYear();
     setPeriodValue(toMonthInputValue(next.month, next.year));
+    setRecurring(false);
+    setMonthsCount(3);
     setError(null);
   }, []);
 
@@ -73,10 +84,23 @@ export const BudgetForm = ({ categories, onSubmit, onSuccess }: BudgetFormProps)
 
     setBusy(true);
     try {
-      await onSubmit({ categoryId, amount: parsedAmount, month, year });
+      const result = await onSubmit({
+        categoryId,
+        amount: parsedAmount,
+        month,
+        year,
+        recurring,
+        monthsCount: recurring ? monthsCount : undefined,
+      });
       setJustAdded(true);
       successTimerRef.current = window.setTimeout(() => setJustAdded(false), 1400);
-      showToast({ message: 'Presupuesto creado', type: 'success' });
+
+      const createdCount = result.budgets.length;
+      let message = `${createdCount} presupuesto${createdCount > 1 ? 's' : ''} creado${createdCount > 1 ? 's' : ''}`;
+      if (result.duplicates && result.duplicates.length > 0) {
+        message += `. ${result.duplicates.length} ya existía${result.duplicates.length > 1 ? 'n' : ''}`;
+      }
+      showToast({ message, type: 'success' });
       resetForm();
       onSuccess();
     } catch (err) {
@@ -88,6 +112,14 @@ export const BudgetForm = ({ categories, onSubmit, onSuccess }: BudgetFormProps)
   };
 
   const expenseCategories = categories.filter(c => c.type === 'expense' && c.groupId === null);
+
+  const startMonth = fromMonthInputValue(periodValue);
+  const endMonth = recurring
+    ? {
+        month: ((startMonth.month + monthsCount - 2) % 12) + 1,
+        year: startMonth.year + Math.floor((startMonth.month + monthsCount - 2) / 12),
+      }
+    : startMonth;
 
   return (
     <form
@@ -136,10 +168,49 @@ export const BudgetForm = ({ categories, onSubmit, onSuccess }: BudgetFormProps)
         />
       </label>
 
+      <label className="field">
+        <div className="field__header">
+          <span className="field__label">Recurrente</span>
+          <button
+            type="button"
+            className={`toggle-btn ${recurring ? 'toggle-btn--on' : 'toggle-btn--off'}`}
+            onClick={() => setRecurring(prev => !prev)}
+            disabled={busy}
+            role="switch"
+            aria-checked={recurring}
+          >
+            <span className="toggle-btn__knob" />
+          </button>
+        </div>
+        <span className="field__hint">{recurring ? 'Se creará un presupuesto para cada mes' : 'Solo se creará para el mes seleccionado'}</span>
+      </label>
+
+      {recurring && (
+        <label className="field">
+          <span className="field__label">Duración</span>
+          <div className="segmented-control segmented-control--triple">
+            {[3, 6, 12].map(n => (
+              <button
+                key={n}
+                type="button"
+                className={`segmented-control__item ${monthsCount === n ? 'segmented-control__item--active' : ''}`}
+                onClick={() => setMonthsCount(n)}
+                disabled={busy}
+              >
+                {n} meses
+              </button>
+            ))}
+          </div>
+          <span className="field__hint">
+            {getMonthLabel(startMonth.month)} {startMonth.year} → {getMonthLabel(endMonth.month)} {endMonth.year}
+          </span>
+        </label>
+      )}
+
       {error ? <div className="form-error">{error}</div> : null}
 
       <button type="submit" className="button button--primary" disabled={busy || !amount || !categoryId}>
-        {busy ? 'Guardando...' : 'Crear presupuesto'}
+        {busy ? 'Guardando...' : (recurring ? `Crear ${monthsCount} presupuestos` : 'Crear presupuesto')}
       </button>
     </form>
   );

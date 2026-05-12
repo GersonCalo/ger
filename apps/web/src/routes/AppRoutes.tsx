@@ -156,6 +156,7 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
                 user={financeApp.user!}
                 onCreateBudget={financeApp.createBudget}
                 onRefreshBudgets={financeApp.refreshBudgets}
+                transactions={financeApp.transactions}
               />
             }
           />

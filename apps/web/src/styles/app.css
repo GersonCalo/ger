@@ -2314,6 +2314,141 @@ select.field__input option {
 }
 
 /* ============================================
+   Budget Metrics
+   ============================================ */
+
+.toggle-btn {
+  width: 48px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn--off {
+  background: var(--surface);
+}
+
+.toggle-btn--on {
+  background: var(--brand);
+}
+
+.toggle-btn__knob {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: #FFFFFF;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-btn--on .toggle-btn__knob {
+  transform: translateX(20px);
+}
+
+.field__hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin-top: var(--s-1);
+}
+
+.budget-row {
+  padding-top: var(--s-3);
+  padding-bottom: var(--s-3);
+}
+
+.budget-metrics {
+  display: flex;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.budget-metrics__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.budget-metrics__label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.budget-metrics__value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.budget-metrics__value--over {
+  color: var(--negative);
+}
+
+.budget-bar-track {
+  margin-top: var(--s-2);
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.budget-bar {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.budget-bar--ok {
+  background: var(--positive);
+}
+
+.budget-bar--warning {
+  background: #FFB300;
+}
+
+.budget-bar--over {
+  background: var(--negative);
+}
+
+.budget-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-1);
+}
+
+.budget-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.budget-status__dot.budget-bar--ok {
+  background: var(--positive);
+}
+
+.budget-status__dot.budget-bar--warning {
+  background: #FFB300;
+}
+
+.budget-status__dot.budget-bar--over {
+  background: var(--negative);
+}
+
+.budget-status__text {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ============================================
    Responsive (tablet+)
    ============================================ */
 
