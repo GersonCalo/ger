@@ -7,6 +7,7 @@ import { getAiInsightProvider } from '../lib/aiInsightProvider.js';
 import { resolvePlan } from '../domain/billing/services/plan-policy.js';
 import { MonthPeriod } from '../domain/insights/value-objects/month-period.js';
 import { buildAiSummaryInput } from '../domain/insights/services/ai-summary.service.js';
+import { suggestCategory } from '../domain/insights/services/category-suggestion.service.js';
 import {
   calculateMonthlySummary,
   type MonthlyTransactionInput,
@@ -168,4 +169,45 @@ insightsRouter.post('/insights/ai-summary', requireAuth, async (req, res) => {
       createdAt: insight.createdAt,
     },
   });
+});
+
+const suggestCategoryBodySchema = z.object({
+  note: z.string().min(1).max(300),
+});
+
+insightsRouter.post('/insights/suggest-category', requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+
+  const parsed = suggestCategoryBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos', zodIssuesDetails(parsed.error));
+  }
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { plan: true, status: true, currentPeriodEnd: true },
+  });
+
+  const plan = resolvePlan(subscription, new Date());
+  if (plan !== 'premium') {
+    return sendError(
+      res,
+      403,
+      'PLAN_LIMIT_REACHED',
+      'La categorización automática es una función premium.',
+      { feature: 'insights.suggest-category', plan, limit: 0, current: 0 }
+    );
+  }
+
+  const categories = await prisma.category.findMany({
+    where: {
+      groupId: null,
+      OR: [{ userId }, { userId: null }],
+    },
+    select: { id: true, name: true },
+  });
+
+  const suggestion = suggestCategory({ note: parsed.data.note, categories });
+
+  return res.json({ suggestion });
 });
