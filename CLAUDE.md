@@ -42,7 +42,8 @@ The schema lives at `packages/db/schema.prisma` (not under `apps/api`). Prisma c
 ## API architecture (`apps/api`)
 
 - `src/index.ts` → `src/app.ts`: Express app with helmet/cors/morgan; all routes mounted under `/api/v1` in `src/routes/index.ts`. `ensureGlobalCategories()` runs on boot to seed shared categories.
-- **Domain layer** (`src/domain/<context>/{value-objects,services}`): pure business logic with no HTTP/Prisma dependencies — e.g. `Money` (integer cents, immutable), `MonthPeriod`, `calculateUserBalanceSummary`, `calculateMonthlySummary`. Routes/libs fetch data and delegate money math here; new financial rules go in a domain service with unit tests first.
+- **Domain layer** (`src/domain/<context>/{value-objects,services}`): pure business logic with no HTTP/Prisma dependencies — e.g. `Money` (integer cents, immutable), `MonthPeriod`, `calculateUserBalanceSummary`, `calculateMonthlySummary`, and the plan policy (`resolvePlan`/`canCreateGroup` in `domain/billing`). Routes/libs fetch data and delegate money math and plan rules here; new financial rules go in a domain service with unit tests first.
+- **Free/premium**: plan limits live in `domain/billing/services/plan-policy.ts` (free = 1 owned group). Routes return `403 PLAN_LIMIT_REACHED`; the web client (`ApiError.code`) opens `PaywallModal` on that code. The `Subscription` model backs the plan (no row → free).
 - **Auth**: JWT bearer tokens. `requireAuth` middleware (`src/middlewares/requireAuth.ts`) verifies the token and puts the user id on `res.locals.userId` — read it there in handlers, not from a decoded param.
 - **Validation**: Zod schemas per route; validation errors go through `sendError` / `zodIssuesDetails` (`src/lib/apiError.ts`) which produce the `{ error: { code, message, details } }` shape the web client parses.
 - **Env**: `src/config/env.ts` validates env vars with Zod at startup and `process.exit(1)` on failure. `DATABASE_URL` is required.

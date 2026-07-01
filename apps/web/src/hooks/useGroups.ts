@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import type { AuthUser, GroupBalancesPayload, GroupExpenseSplitInput, GroupSummary } from '@/types';
 
 type UseGroupsParams = {
@@ -24,6 +24,9 @@ export const useGroups = ({ token, user, setActiveTab, refreshBalance, refreshTr
   const [selectedGroupJoinCode, setSelectedGroupJoinCode] = useState<string | null>(null);
   const [groupsBusy, setGroupsBusy] = useState(false);
   const [groupsError, setGroupsError] = useState<string | null>(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  const dismissPaywall = useCallback(() => setPaywallVisible(false), []);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -40,6 +43,7 @@ export const useGroups = ({ token, user, setActiveTab, refreshBalance, refreshTr
     clearSelectedGroup();
     setGroupsBusy(false);
     setGroupsError(null);
+    setPaywallVisible(false);
   }, [clearSelectedGroup]);
 
   const hydrate = useCallback((nextGroups: GroupSummary[]) => {
@@ -138,7 +142,11 @@ export const useGroups = ({ token, user, setActiveTab, refreshBalance, refreshTr
         setActiveTab('groups');
         await Promise.all([refreshSelectedGroup(createdGroup.id), refreshBalance()]);
       } catch (error) {
-        setGroupsError(error instanceof Error ? error.message : 'No se pudo crear el grupo');
+        if (error instanceof ApiError && error.code === 'PLAN_LIMIT_REACHED') {
+          setPaywallVisible(true);
+        } else {
+          setGroupsError(error instanceof Error ? error.message : 'No se pudo crear el grupo');
+        }
       } finally {
         setGroupsBusy(false);
       }
@@ -315,6 +323,8 @@ export const useGroups = ({ token, user, setActiveTab, refreshBalance, refreshTr
     setSelectedGroupId,
     clearSelectedGroup,
     createGroup,
+    paywallVisible,
+    dismissPaywall,
     addGroupExpense,
     updateGroupExpense,
     addGroupMember,

@@ -24,6 +24,18 @@ import type {
 const API_URL: string = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_URL || 'http://localhost:8080';
 const API_BASE = `${API_URL}/api/v1`;
 
+export class ApiError extends Error {
+  code: string | null;
+  details?: unknown;
+
+  constructor(message: string, code: string | null, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
 const parseJson = async <T>(response: Response) => {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
@@ -41,7 +53,7 @@ const parseJson = async <T>(response: Response) => {
       message = `${baseMessage}. ${issueMessages.join('; ')}`;
     }
 
-    throw new Error(message);
+    throw new ApiError(message, payload?.error?.code ?? null, details);
   }
 
   return payload as T;

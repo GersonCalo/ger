@@ -62,6 +62,10 @@ Base URL local: http://localhost:8080
 ## Insights
 - `GET /insights/monthly-summary?month=&year=` — resumen del mes (por defecto, el actual): ingresos, gastos, categoría con mayor gasto, comparación con el mes anterior (`expenseDeltaPercent`, `null` si el mes anterior no tiene gastos) y consejos simples (`tips`). El cálculo vive en el servicio de dominio `calculateMonthlySummary` (`src/domain/insights`).
 
+## Billing (free/premium)
+- `GET /billing/plan` — plan efectivo del usuario (`free` | `premium`), límites (`limits.maxOwnedGroups`, `null` = ilimitado) y uso actual (`usage.ownedGroups`). El plan se resuelve desde la entidad `Subscription` (sin suscripción, cancelada o caducada → `free`).
+- `POST /groups` devuelve `403 PLAN_LIMIT_REACHED` (con `details: { feature, plan, limit, current }`) cuando un usuario free intenta crear más grupos de los que permite su plan (1 grupo propio). La regla vive en `canCreateGroup` / `resolvePlan` (`src/domain/billing/services/plan-policy.ts`), nunca en controladores. El frontend muestra el paywall al recibir ese código.
+
 ---
 
 ## Notas generales

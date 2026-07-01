@@ -32,6 +32,22 @@ model User {
   budgets      Budget[]
   pushSubscriptions PushSubscription[]
   budgetAlerts BudgetAlert[]
+  subscription Subscription?
+}
+
+model Subscription {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id])
+  plan             String    @default("free") // 'free' | 'premium'
+  status           String    @default("active") // 'active' | 'canceled' | 'past_due'
+  provider         String?   // 'stripe' (integración futura)
+  providerRef      String?   // id de la suscripción en el proveedor
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
 }
 
 model Category {

@@ -12,6 +12,7 @@ import {
 } from '../lib/groupSerializers.js';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
+import { canCreateGroup, resolvePlan } from '../domain/billing/services/plan-policy.js';
 import { sendPushToUser } from '../lib/push.js';
 import { sendError, zodIssuesDetails, type ApiErrorBody } from '../lib/apiError.js';
 import {
@@ -431,6 +432,34 @@ groupsRouter.post('/groups', requireAuth, async (req, res) => {
 
   if (!owner) {
     return sendError(res, 401, 'AUTH_UNAUTHENTICATED', 'No autenticado');
+  }
+
+  const [subscription, ownedGroupsCount] = await Promise.all([
+    prisma.subscription.findUnique({
+      where: { userId },
+      select: { plan: true, status: true, currentPeriodEnd: true },
+    }),
+    prisma.group.count({ where: { ownerUserId: userId } }),
+  ]);
+
+  const featureCheck = canCreateGroup({
+    plan: resolvePlan(subscription, new Date()),
+    ownedGroupsCount,
+  });
+
+  if (!featureCheck.allowed) {
+    return sendError(
+      res,
+      403,
+      'PLAN_LIMIT_REACHED',
+      'El plan gratuito solo permite un grupo activo. Pásate a premium para crear grupos ilimitados.',
+      {
+        feature: 'groups.create',
+        plan: featureCheck.plan,
+        limit: featureCheck.limit,
+        current: ownedGroupsCount,
+      }
+    );
   }
 
   const joinCode = await createUniqueJoinCode();

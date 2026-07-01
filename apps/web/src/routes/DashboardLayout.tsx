@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
+import { PaywallModal } from '@/components/billing/PaywallModal';
 import { OnboardingWelcome } from '@/components/onboarding/OnboardingWelcome';
 import { FAB } from '@/components/ui/FAB';
 import { Modal } from '@/components/ui/Modal';
@@ -126,6 +127,8 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
             }}
           />
         </div>
+
+        <PaywallModal isOpen={financeApp.paywallVisible} onClose={financeApp.dismissPaywall} />
 
         <OnboardingWelcome
           isOpen={financeApp.showOnboarding && location.pathname === '/'}

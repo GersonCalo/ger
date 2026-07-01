@@ -519,6 +519,59 @@ a {
 }
 
 /* ============================================
+   Paywall (free/premium)
+   ============================================ */
+
+.paywall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.paywall__description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.paywall__benefits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paywall__benefit {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.paywall__benefit-icon {
+  color: var(--positive);
+  font-weight: 700;
+}
+
+.paywall__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.paywall__note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+/* ============================================
    Resumen mensual (insights)
    ============================================ */
 
