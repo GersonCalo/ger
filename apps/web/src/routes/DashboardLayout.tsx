@@ -128,7 +128,13 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
           />
         </div>
 
-        <PaywallModal isOpen={financeApp.paywallVisible} onClose={financeApp.dismissPaywall} />
+        <PaywallModal
+          isOpen={financeApp.paywallVisible || financeApp.aiPaywallVisible}
+          onClose={() => {
+            financeApp.dismissPaywall();
+            financeApp.dismissAiPaywall();
+          }}
+        />
 
         <OnboardingWelcome
           isOpen={financeApp.showOnboarding && location.pathname === '/'}

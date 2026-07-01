@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 
 import { MonthlySummaryCard } from './MonthlySummaryCard';
@@ -55,5 +55,34 @@ describe('MonthlySummaryCard', () => {
     const { container } = render(<MonthlySummaryCard summary={null} currency="EUR" />);
 
     expect(container.firstChild).toBeNull();
+  });
+
+  it('ofrece el análisis inteligente premium y lanza la petición', () => {
+    const onGenerateAiSummary = vi.fn();
+    render(
+      <MonthlySummaryCard
+        summary={makeSummary()}
+        currency="EUR"
+        onGenerateAiSummary={onGenerateAiSummary}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /análisis inteligente/i }));
+
+    expect(onGenerateAiSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it('muestra el análisis generado en lugar del botón', () => {
+    render(
+      <MonthlySummaryCard
+        summary={makeSummary()}
+        currency="EUR"
+        onGenerateAiSummary={vi.fn()}
+        aiSummary="Tu mayor gasto está en Supermercado; empieza por ahí."
+      />
+    );
+
+    expect(screen.getByText('Tu mayor gasto está en Supermercado; empieza por ahí.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /análisis inteligente/i })).toBeNull();
   });
 });

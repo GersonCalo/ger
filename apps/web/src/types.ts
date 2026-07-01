@@ -232,3 +232,12 @@ export type MonthlySummary = {
   expenseDeltaPercent: number | null;
   tips: InsightTip[];
 };
+
+export type AiInsight = {
+  id: string;
+  month: number;
+  year: number;
+  provider: string;
+  content: string;
+  createdAt: string;
+};

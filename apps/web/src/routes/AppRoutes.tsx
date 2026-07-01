@@ -64,6 +64,9 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
                 transactions={financeApp.transactions}
                 user={financeApp.user!}
                 monthlySummary={financeApp.monthlySummary}
+                onGenerateAiSummary={financeApp.generateAiSummary}
+                aiSummary={financeApp.aiSummary}
+                aiSummaryBusy={financeApp.aiSummaryBusy}
               />
             }
           />

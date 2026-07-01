@@ -33,6 +33,20 @@ model User {
   pushSubscriptions PushSubscription[]
   budgetAlerts BudgetAlert[]
   subscription Subscription?
+  aiInsights   AiInsight[]
+}
+
+model AiInsight {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  month     Int
+  year      Int
+  provider  String   // 'local' | proveedor externo futuro
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, year, month])
 }
 
 model Subscription {

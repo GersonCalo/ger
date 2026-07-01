@@ -1,4 +1,5 @@
 import type {
+  AiInsight,
   ApiHealth,
   AuthResponse,
   AuthUser,
@@ -506,5 +507,15 @@ export const api = {
 
     const data = await parseJson<{ summary: MonthlySummary }>(response);
     return data.summary;
+  },
+  async generateAiSummary(token: string, input?: { month?: number; year?: number }) {
+    const response = await fetch(`${API_BASE}/insights/ai-summary`, {
+      method: 'POST',
+      headers: createHeaders(token),
+      body: JSON.stringify(input ?? {}),
+    });
+
+    const data = await parseJson<{ insight: AiInsight }>(response);
+    return data.insight;
   },
 };

@@ -21,6 +21,9 @@ type DashboardScreenProps = {
   transactions: Transaction[];
   user: AuthUser;
   monthlySummary: MonthlySummary | null;
+  onGenerateAiSummary?: () => void;
+  aiSummary?: string | null;
+  aiSummaryBusy?: boolean;
 };
 
 export const DashboardScreen = ({
@@ -30,6 +33,9 @@ export const DashboardScreen = ({
   transactions,
   user,
   monthlySummary,
+  onGenerateAiSummary,
+  aiSummary,
+  aiSummaryBusy,
 }: DashboardScreenProps) => {
   const navigate = useNavigate();
   const featuredGroup = groups[0];
@@ -62,7 +68,13 @@ export const DashboardScreen = ({
 
       <BalanceChart transactions={transactions} currency={user.currency} />
 
-      <MonthlySummaryCard summary={monthlySummary} currency={user.currency} />
+      <MonthlySummaryCard
+        summary={monthlySummary}
+        currency={user.currency}
+        onGenerateAiSummary={onGenerateAiSummary}
+        aiSummary={aiSummary}
+        aiSummaryBusy={aiSummaryBusy}
+      />
 
       <div className="stats-grid">
         <StatCard label="Total" value={formatMoney(summary.total, user.currency)} tone="accent" />

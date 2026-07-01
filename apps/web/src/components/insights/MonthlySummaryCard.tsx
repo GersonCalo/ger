@@ -5,9 +5,18 @@ import type { MonthlySummary } from '@/types';
 type MonthlySummaryCardProps = {
   summary: MonthlySummary | null;
   currency: string;
+  onGenerateAiSummary?: () => void;
+  aiSummary?: string | null;
+  aiSummaryBusy?: boolean;
 };
 
-export const MonthlySummaryCard = ({ summary, currency }: MonthlySummaryCardProps) => {
+export const MonthlySummaryCard = ({
+  summary,
+  currency,
+  onGenerateAiSummary,
+  aiSummary,
+  aiSummaryBusy,
+}: MonthlySummaryCardProps) => {
   if (!summary) return null;
 
   const delta = summary.expenseDeltaPercent;
@@ -46,6 +55,21 @@ export const MonthlySummaryCard = ({ summary, currency }: MonthlySummaryCardProp
               </li>
             ))}
           </ul>
+        )}
+
+        {aiSummary ? (
+          <p className="monthly-summary__ai">{aiSummary}</p>
+        ) : (
+          onGenerateAiSummary && (
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={onGenerateAiSummary}
+              disabled={aiSummaryBusy}
+            >
+              ✨ Análisis inteligente
+            </button>
+          )
         )}
       </div>
     </SectionCard>

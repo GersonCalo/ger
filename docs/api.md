@@ -61,6 +61,7 @@ Base URL local: http://localhost:8080
 
 ## Insights
 - `GET /insights/monthly-summary?month=&year=` — resumen del mes (por defecto, el actual): ingresos, gastos, categoría con mayor gasto, comparación con el mes anterior (`expenseDeltaPercent`, `null` si el mes anterior no tiene gastos) y consejos simples (`tips`). El cálculo vive en el servicio de dominio `calculateMonthlySummary` (`src/domain/insights`).
+- `POST /insights/ai-summary` (body opcional `{ month, year }`) — **solo premium** (free recibe `403 PLAN_LIMIT_REACHED` con `details.feature = "insights.ai-summary"`). Genera un análisis del mes en lenguaje natural a partir de datos agregados (nunca se envían emails, nombres ni notas al proveedor — ver `buildAiSummaryInput`), lo persiste en `AiInsight` y devuelve `{ insight }`. El proveedor se resuelve en `src/lib/aiInsightProvider.ts`; la implementación actual es local y determinista, lista para sustituirse por un proveedor externo que use `buildAiSummaryPrompt`.
 
 ## Billing (free/premium)
 - `GET /billing/plan` — plan efectivo del usuario (`free` | `premium`), límites (`limits.maxOwnedGroups`, `null` = ilimitado) y uso actual (`usage.ownedGroups`). El plan se resuelve desde la entidad `Subscription` (sin suscripción, cancelada o caducada → `free`).
