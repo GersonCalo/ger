@@ -12,6 +12,11 @@ enum BudgetPeriod {
   monthly
 }
 
+enum BudgetAlertThreshold {
+  eighty
+  oneHundred
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -26,6 +31,7 @@ model User {
   categories   Category[]
   budgets      Budget[]
   pushSubscriptions PushSubscription[]
+  budgetAlerts BudgetAlert[]
 }
 
 model Category {
@@ -205,7 +211,32 @@ model Budget {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
+  alerts     BudgetAlert[]
+
   @@unique([userId, categoryId, month, year, period])
   @@index([userId, year, month])
   @@index([categoryId])
+}
+
+model BudgetAlert {
+  id           String              @id @default(uuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id])
+  budgetId     String?
+  budget       Budget?             @relation(fields: [budgetId], references: [id], onDelete: SetNull)
+  categoryId   String
+  month        Int
+  year         Int
+  threshold    BudgetAlertThreshold
+  consumedPercent Float
+  spentSnapshot   Float
+  budgetAmountSnapshot Float
+  channel      String              @default("push")
+  sentAt       DateTime            @default(now())
+
+  @@unique([userId, categoryId, month, year, threshold])
+  @@index([userId])
+  @@index([userId, year, month])
+  @@index([categoryId])
+  @@index([sentAt])
 }

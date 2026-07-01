@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   AuthUser,
   Budget,
+  BudgetAlertTriggered,
   BudgetListFilters,
   Category,
   CreateBudgetInput,
@@ -14,6 +15,7 @@ import type {
   GroupMember,
   GroupSettlement,
   GroupSummary,
+  MonthlySummary,
   Transaction,
   TransactionListFilters,
   TransactionListResponse,
@@ -155,8 +157,8 @@ export const api = {
       body: JSON.stringify(input),
     });
 
-    const data = await parseJson<{ transaction: Transaction }>(response);
-    return data.transaction;
+    const data = await parseJson<{ transaction: Transaction; alertsTriggered?: BudgetAlertTriggered[] }>(response);
+    return { transaction: data.transaction, alertsTriggered: data.alertsTriggered ?? [] };
   },
   async getCategories(token: string) {
     const response = await fetch(`${API_BASE}/categories`, {
@@ -429,8 +431,8 @@ export const api = {
       body: JSON.stringify(input),
     });
 
-    const data = await parseJson<{ transaction: Transaction }>(response);
-    return data.transaction;
+    const data = await parseJson<{ transaction: Transaction; alertsTriggered?: BudgetAlertTriggered[] }>(response);
+    return { transaction: data.transaction, alertsTriggered: data.alertsTriggered ?? [] };
   },
   async deleteTransaction(token: string, id: string) {
     const response = await fetch(`${API_BASE}/transactions/${id}`, {
@@ -484,5 +486,13 @@ export const api = {
 
     const data = await parseJson<{ budgets: Budget[]; duplicates?: Array<{ month: number; year: number }> }>(response);
     return { budgets: data.budgets, duplicates: data.duplicates };
+  },
+  async monthlySummary(token: string) {
+    const response = await fetch(`${API_BASE}/insights/monthly-summary`, {
+      headers: createHeaders(token),
+    });
+
+    const data = await parseJson<{ summary: MonthlySummary }>(response);
+    return data.summary;
   },
 };

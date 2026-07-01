@@ -1,4 +1,5 @@
-import { calculateGroupBalances, fromCents, toCents } from './groupBalances.js';
+import { calculateGroupBalances, toCents } from './groupBalances.js';
+import { calculateUserBalanceSummary } from '../domain/personal-finance/services/calculate-user-balance.service.js';
 import { prisma } from '../db/prisma.js';
 
 type UserGroupMembership = {
@@ -75,8 +76,6 @@ const calculateGroupNetForMembership = (membership: UserGroupMembership) => {
   };
 };
 
-type UserGroupNet = ReturnType<typeof calculateGroupNetForMembership>;
-
 export const calculateUserBalance = async (userId: string) => {
   const [transactions, memberships] = await Promise.all([
     prisma.personalTransaction.findMany({
@@ -132,36 +131,11 @@ export const calculateUserBalance = async (userId: string) => {
     }),
   ]);
 
-  let personalIncomeCents = 0;
-  let personalExpenseCents = 0;
-
-  for (const transaction of transactions) {
-    const amountCents = toCents(Number(transaction.amount.toString()));
-
-    if (transaction.type === 'income') {
-      personalIncomeCents += amountCents;
-    } else {
-      personalExpenseCents += amountCents;
-    }
-  }
-
-  const groupsBreakdown = memberships.map(calculateGroupNetForMembership);
-  const groupNetCents = groupsBreakdown.reduce((sum: number, group: UserGroupNet) => sum + group.netCents, 0);
-  const personalBalanceCents = personalIncomeCents - personalExpenseCents;
-  const totalBalanceCents = personalBalanceCents + Math.max(groupNetCents, 0);
-
-  return {
-    personalIncome: fromCents(personalIncomeCents),
-    personalExpense: fromCents(personalExpenseCents),
-    personalBalance: fromCents(personalBalanceCents),
-    groupNet: fromCents(groupNetCents),
-    totalBalance: fromCents(totalBalanceCents),
-    groupsBreakdown: groupsBreakdown.map((group: UserGroupNet) => ({
-      groupId: group.groupId,
-      groupName: group.groupName,
-      currency: group.currency,
-      memberId: group.memberId,
-      net: fromCents(group.netCents),
+  return calculateUserBalanceSummary({
+    transactions: transactions.map(transaction => ({
+      type: transaction.type === 'income' ? 'income' : 'expense',
+      amountCents: toCents(Number(transaction.amount.toString())),
     })),
-  };
+    groupNets: memberships.map(calculateGroupNetForMembership),
+  });
 };

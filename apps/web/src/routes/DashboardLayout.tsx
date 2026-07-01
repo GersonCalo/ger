@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
+import { OnboardingWelcome } from '@/components/onboarding/OnboardingWelcome';
 import { FAB } from '@/components/ui/FAB';
 import { Modal } from '@/components/ui/Modal';
 import { QuickGroupExpenseModal } from '@/components/ui/QuickGroupExpenseModal';
@@ -41,6 +42,16 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
 
   const handleOpenCreateTransaction = () => {
     navigate('/transactions', { state: { openCreateModal: true } });
+  };
+
+  const handleOnboardingAddExpense = () => {
+    financeApp.completeOnboarding();
+    navigate('/transactions', { state: { openCreateModal: true } });
+  };
+
+  const handleOnboardingCreateGroup = () => {
+    financeApp.completeOnboarding();
+    navigate('/groups');
   };
 
   const handleOpenGroupExpense = () => {
@@ -115,6 +126,13 @@ export const DashboardLayout = ({ financeApp }: DashboardLayoutProps) => {
             }}
           />
         </div>
+
+        <OnboardingWelcome
+          isOpen={financeApp.showOnboarding && location.pathname === '/'}
+          onAddExpense={handleOnboardingAddExpense}
+          onCreateGroup={handleOnboardingCreateGroup}
+          onDismiss={financeApp.completeOnboarding}
+        />
 
         <QuickGroupExpenseModal
           isOpen={groupExpenseModalOpen}

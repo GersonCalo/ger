@@ -8,7 +8,7 @@
 
 ---
 
-## HU-02.0 | Base de datos + API de Presupuestos
+## HU-02.0 | Base de datos + API de Presupuestos DONE
 
 ### Metadata
 - **Tipo**: Story (Habilitadora)
@@ -86,7 +86,7 @@ Que el equipo pueda construir todas las historias de usuario de presupuestos sin
 
 ---
 
-## HU-02.1 | Crear presupuesto mensual por categoría
+## HU-02.1 | Crear presupuesto mensual por categoría DONE
 
 ### Metadata
 - **Tipo**: Story
@@ -145,7 +145,7 @@ Que el usuario pueda definir límites de gasto claros para cada categoría y mes
 
 ---
 
-## HU-02.2 | Vista de presupuestos con "gastado vs disponible"
+## HU-02.2 | Vista de presupuestos con "gastado vs disponible" DONE
 
 ### Metadata
 - **Tipo**: Story

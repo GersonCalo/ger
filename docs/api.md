@@ -59,6 +59,9 @@ Base URL local: http://localhost:8080
 - `PATCH /budgets/:id`
 - `DELETE /budgets/:id`
 
+## Insights
+- `GET /insights/monthly-summary?month=&year=` — resumen del mes (por defecto, el actual): ingresos, gastos, categoría con mayor gasto, comparación con el mes anterior (`expenseDeltaPercent`, `null` si el mes anterior no tiene gastos) y consejos simples (`tips`). El cálculo vive en el servicio de dominio `calculateMonthlySummary` (`src/domain/insights`).
+
 ---
 
 ## Notas generales

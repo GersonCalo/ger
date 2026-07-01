@@ -3,9 +3,10 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionCard } from '@/components/SectionCard';
 import { StatCard } from '@/components/StatCard';
 import { BalanceChart } from '@/components/BalanceChart';
+import { MonthlySummaryCard } from '@/components/insights/MonthlySummaryCard';
 import { summarizeTransactions } from '@/lib/groups';
 import { formatDate, formatMoney } from '@/lib/format';
-import type { AuthUser, GroupSummary, Transaction } from '@/types';
+import type { AuthUser, GroupSummary, MonthlySummary, Transaction } from '@/types';
 
 type DashboardScreenProps = {
   groups: GroupSummary[];
@@ -19,6 +20,7 @@ type DashboardScreenProps = {
   };
   transactions: Transaction[];
   user: AuthUser;
+  monthlySummary: MonthlySummary | null;
 };
 
 export const DashboardScreen = ({
@@ -27,6 +29,7 @@ export const DashboardScreen = ({
   summary,
   transactions,
   user,
+  monthlySummary,
 }: DashboardScreenProps) => {
   const navigate = useNavigate();
   const featuredGroup = groups[0];
@@ -58,6 +61,8 @@ export const DashboardScreen = ({
       </section>
 
       <BalanceChart transactions={transactions} currency={user.currency} />
+
+      <MonthlySummaryCard summary={monthlySummary} currency={user.currency} />
 
       <div className="stats-grid">
         <StatCard label="Total" value={formatMoney(summary.total, user.currency)} tone="accent" />

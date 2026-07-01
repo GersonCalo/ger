@@ -63,6 +63,7 @@ export const AppRoutes = ({ financeApp }: AppRoutesProps) => {
                 summary={financeApp.dashboardSummary}
                 transactions={financeApp.transactions}
                 user={financeApp.user!}
+                monthlySummary={financeApp.monthlySummary}
               />
             }
           />

@@ -15,7 +15,7 @@ const MONTH_NAMES = [
 
 const getCurrentMonthYear = () => {
   const now = new Date();
-  return { month: now.getMonth() + 1, year: now.getFullYear() };
+  return { month: now.getUTCMonth() + 1, year: now.getUTCFullYear() };
 };
 
 const toMonthInputValue = (month: number, year: number) =>

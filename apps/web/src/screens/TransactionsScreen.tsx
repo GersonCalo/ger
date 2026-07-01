@@ -9,15 +9,16 @@ import { SwipeableTransactionRow } from '@/components/transactions/SwipeableTran
 import { formatDate, formatMoney } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
 import { useFabBlockedState } from '@/routes/DashboardLayout';
-import type { AuthUser, Transaction, Category, TransactionListFilters } from '@/types';
+import { isPushEnabled, isPushSupported } from '@/lib/push';
+import type { AuthUser, BudgetAlertTriggered, Transaction, Category, TransactionListFilters } from '@/types';
 
 const ACTIONS_WIDTH = 140;
 
 type TransactionsScreenProps = {
   busy: boolean;
   error: string | null;
-  onCreateTransaction: (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => Promise<void>;
-  onUpdateTransaction: (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => Promise<void>;
+  onCreateTransaction: (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => Promise<{ alertsTriggered: BudgetAlertTriggered[] }>;
+  onUpdateTransaction: (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => Promise<{ alertsTriggered: BudgetAlertTriggered[] }>;
   onDeleteTransaction: (id: string) => Promise<void>;
   onCreateCategory: (input: { name: string; type: 'income' | 'expense'; color?: string; icon?: string }) => Promise<any>;
   onRefresh: () => Promise<void>;
@@ -170,18 +171,41 @@ export const TransactionsScreen = ({
     setNewCategoryName('');
   };
 
+  const showBudgetAlertFallback = (alerts: BudgetAlertTriggered[]) => {
+    if (alerts.length === 0 || isPushSupported() && isPushEnabled()) return;
+    for (const alert of alerts) {
+      const label = alert.threshold === 80 ? 'Cerca del límite' : 'Presupuesto excedido';
+      showToast({
+        message: `${label}: ${alert.categoryName} (${Math.round(alert.consumedPercent)}%)`,
+        type: alert.threshold === 100 ? 'error' : 'info',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleEditSave = async (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => {
+    const result = await onUpdateTransaction(input);
+    showBudgetAlertFallback(result?.alertsTriggered ?? []);
+  };
+
+  const nowUtcNoon = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0)).toISOString();
+  };
+
   const handleCreateSubmit = async () => {
     if (!amount) return;
 
-    await onCreateTransaction({
+    const result = await onCreateTransaction({
       type,
       amount: Number(amount),
       categoryId: categoryId || undefined,
       note: note || undefined,
-      occurredAt: new Date().toISOString(),
+      occurredAt: nowUtcNoon(),
     });
 
     showToast({ message: 'Movimiento registrado', type: 'success' });
+    showBudgetAlertFallback(result?.alertsTriggered ?? []);
 
     if (successTimerRef.current) {
       window.clearTimeout(successTimerRef.current);
@@ -607,7 +631,7 @@ export const TransactionsScreen = ({
         transaction={editTransaction}
         categories={categories}
         busy={busy}
-        onSave={onUpdateTransaction}
+        onSave={handleEditSave}
         onClose={closeEdit}
       />
     </div>

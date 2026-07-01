@@ -5,6 +5,7 @@ import { groupsRouter } from './groups.js';
 import { transactionsRouter } from './transactions.js';
 import { categoriesRouter } from './categories.js';
 import { budgetsRouter } from './budgets.js';
+import { insightsRouter } from './insights.js';
 import pushRouter from './push.js';
 
 export const router = Router();
@@ -22,4 +23,5 @@ router.use(transactionsRouter);
 router.use(groupsRouter);
 router.use(categoriesRouter);
 router.use(budgetsRouter);
+router.use(insightsRouter);
 router.use(pushRouter);

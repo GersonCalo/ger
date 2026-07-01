@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import type { GlobalBalancePayload, Transaction, TransactionListFilters } from '@/types';
+import { isPushEnabled, isPushSupported } from '@/lib/push';
+import type { BudgetAlertTriggered, GlobalBalancePayload, Transaction, TransactionListFilters } from '@/types';
 
 type UseTransactionsParams = {
   token: string | null;
@@ -156,13 +157,14 @@ export const useTransactions = ({ token }: UseTransactionsParams) => {
 
   const createTransaction = useCallback(
     async (input: { type: 'income' | 'expense'; amount: number; categoryId?: string; note?: string; occurredAt: string }) => {
-      if (!token) return;
+      if (!token) return { alertsTriggered: [] as BudgetAlertTriggered[] };
       setDataBusy(true);
       setTransactionError(null);
       try {
-        const created = await api.createTransaction(token, input);
-        setTransactions(prev => [created, ...prev]);
+        const result = await api.createTransaction(token, input);
+        setTransactions(prev => [result.transaction, ...prev]);
         await refreshBalance();
+        return { alertsTriggered: result.alertsTriggered };
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Error guardando transaccion';
         setTransactionError(message);
@@ -176,11 +178,11 @@ export const useTransactions = ({ token }: UseTransactionsParams) => {
 
   const updateTransaction = useCallback(
     async (input: { id: string; type?: 'income' | 'expense'; amount?: number; categoryId?: string | null; note?: string | null; occurredAt?: string }) => {
-      if (!token) return;
+      if (!token) return { alertsTriggered: [] as BudgetAlertTriggered[] };
       setDataBusy(true);
       setTransactionError(null);
       try {
-        await api.updateTransaction(token, input.id, {
+        const result = await api.updateTransaction(token, input.id, {
           type: input.type,
           amount: input.amount,
           categoryId: input.categoryId,
@@ -188,6 +190,7 @@ export const useTransactions = ({ token }: UseTransactionsParams) => {
           occurredAt: input.occurredAt,
         });
         await Promise.all([refreshBalance({ silent: true }), refreshTransactions({ silent: true })]);
+        return { alertsTriggered: result.alertsTriggered };
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Error actualizando transaccion';
         setTransactionError(message);

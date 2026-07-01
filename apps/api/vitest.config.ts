@@ -12,7 +12,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/lib/groupBalances.ts', 'src/lib/userBalance.ts'],
+      include: ['src/lib/groupBalances.ts', 'src/lib/userBalance.ts', 'src/domain/**/*.ts'],
       thresholds: {
         lines: 80,
         statements: 80,

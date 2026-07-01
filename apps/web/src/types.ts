@@ -204,3 +204,31 @@ export type CreateBudgetInput = {
   recurring?: boolean;
   monthsCount?: number;
 };
+
+export type BudgetAlertTriggered = {
+  categoryId: string;
+  categoryName: string;
+  month: number;
+  year: number;
+  threshold: 80 | 100;
+  consumedPercent: number;
+  spent: number;
+  budgetAmount: number;
+};
+
+export type InsightTip = {
+  id: string;
+  message: string;
+};
+
+export type MonthlySummary = {
+  month: number;
+  year: number;
+  income: number;
+  expense: number;
+  balance: number;
+  topCategory: { categoryId: string | null; name: string; amount: number } | null;
+  previousExpense: number;
+  expenseDeltaPercent: number | null;
+  tips: InsightTip[];
+};

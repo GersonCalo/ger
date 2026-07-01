@@ -42,7 +42,7 @@ export const Drawer = ({
   swipeConfig,
 }: DrawerProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const closeTimerRef = useRef<number | null>(null);

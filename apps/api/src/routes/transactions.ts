@@ -6,6 +6,7 @@ import { requireAuth } from '../middlewares/requireAuth.js';
 import { sendError, zodIssuesDetails } from '../lib/apiError.js';
 import { syncUserGroupLedgerBackfill } from '../lib/personalLedgerSync.js';
 import { calculateUserBalance } from '../lib/userBalance.js';
+import { checkBudgetThresholds } from '../lib/budgetAlerts.js';
 
 export const transactionsRouter = Router();
 
@@ -334,45 +335,109 @@ transactionsRouter.post('/transactions', requireAuth, async (req, res) => {
     }
   }
 
-  const transaction = await prisma.personalTransaction.create({
-    data: {
-      userId,
-      type: parsed.data.type,
-      amount: amountValue,
-      categoryId: parsed.data.categoryId || null,
-      note: parsed.data.note?.trim() || null,
-      occurredAt,
-    },
-    select: {
-      id: true,
-      type: true,
-      amount: true,
-      categoryId: true,
-      category: {
+  let alertsTriggered: Awaited<ReturnType<typeof checkBudgetThresholds>> = [];
+  let transaction: Awaited<ReturnType<typeof prisma.personalTransaction.create>>;
+
+  const needsBudgetCheck = parsed.data.type === 'expense' && parsed.data.categoryId;
+
+  if (needsBudgetCheck) {
+    const txMonth = occurredAt.getUTCMonth() + 1;
+    const txYear = occurredAt.getUTCFullYear();
+
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await tx.personalTransaction.create({
+        data: {
+          userId,
+          type: parsed.data.type,
+          amount: amountValue,
+          categoryId: parsed.data.categoryId || null,
+          note: parsed.data.note?.trim() || null,
+          occurredAt,
+        },
         select: {
           id: true,
-          name: true,
           type: true,
-          color: true,
-          icon: true,
+          amount: true,
+          categoryId: true,
+          userId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
+          occurredAt: true,
+          note: true,
+          sourceType: true,
+          sourceRefId: true,
+          locked: true,
+          groupId: true,
+          group: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      const alerts = await checkBudgetThresholds({
+        tx,
+        userId,
+        categoryIds: [parsed.data.categoryId!],
+        months: [{ month: txMonth, year: txYear }],
+      });
+
+      return { created, alerts };
+    });
+
+    transaction = result.created;
+    alertsTriggered = result.alerts;
+  } else {
+    transaction = await prisma.personalTransaction.create({
+      data: {
+        userId,
+        type: parsed.data.type,
+        amount: amountValue,
+        categoryId: parsed.data.categoryId || null,
+        note: parsed.data.note?.trim() || null,
+        occurredAt,
+      },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        categoryId: true,
+        userId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            color: true,
+            icon: true,
+          },
+        },
+        occurredAt: true,
+        note: true,
+        sourceType: true,
+        sourceRefId: true,
+        locked: true,
+        groupId: true,
+        group: {
+          select: {
+            name: true,
+          },
         },
       },
-      occurredAt: true,
-      note: true,
-      sourceType: true,
-      sourceRefId: true,
-      locked: true,
-      groupId: true,
-      group: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
+    });
+  }
 
   return res.status(201).json({
     transaction: serializeTransaction(transaction),
+    alertsTriggered: alertsTriggered.length > 0 ? alertsTriggered : undefined,
   });
 });
 
@@ -398,11 +463,9 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
     return sendError(res, 400, 'VALIDATION_FAILED', 'Datos inválidos');
   }
 
-  await prisma.$transaction((tx: Prisma.TransactionClient) => syncUserGroupLedgerBackfill(tx, userId));
-
   const existing = await prisma.personalTransaction.findFirst({
     where: { id: transactionId, userId },
-    select: { id: true, locked: true },
+    select: { id: true, locked: true, type: true, categoryId: true, occurredAt: true },
   });
 
   if (!existing) {
@@ -412,6 +475,10 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
   if (existing.locked) {
     return sendError(res, 409, 'TX_LOCKED', 'Transacción bloqueada');
   }
+
+  const oldCategoryId = existing.categoryId;
+  const oldOccurredAt = existing.occurredAt;
+  const oldType = existing.type;
 
   const updates: Record<string, unknown> = {};
 
@@ -459,39 +526,121 @@ transactionsRouter.patch('/transactions/:id', requireAuth, async (req, res) => {
     updates.categoryId = categoryId;
   }
 
-  const transaction = await prisma.personalTransaction.update({
-    where: { id: existing.id },
-    data: updates as any,
-    select: {
-      id: true,
-      type: true,
-      amount: true,
-      categoryId: true,
-      category: {
+  const finalType = (updates.type as string) ?? oldType;
+  const finalCategoryId = (updates.categoryId as string | null) ?? oldCategoryId;
+  const finalOccurredAt = (updates.occurredAt as Date) ?? oldOccurredAt;
+
+  const newMonth = finalOccurredAt.getUTCMonth() + 1;
+  const newYear = finalOccurredAt.getUTCFullYear();
+  const oldMonth = oldOccurredAt.getUTCMonth() + 1;
+  const oldYear = oldOccurredAt.getUTCFullYear();
+
+  const monthsToCheck = new Set<string>();
+  const categoriesToCheck = new Set<string>();
+
+  if (finalType === 'expense' && finalCategoryId) {
+    monthsToCheck.add(`${newMonth}-${newYear}`);
+    categoriesToCheck.add(finalCategoryId);
+  }
+
+  if (oldType === 'expense' && oldCategoryId && (oldMonth !== newMonth || oldYear !== newYear || oldCategoryId !== finalCategoryId)) {
+    monthsToCheck.add(`${oldMonth}-${oldYear}`);
+    categoriesToCheck.add(oldCategoryId);
+  }
+
+  const needsBudgetCheck = monthsToCheck.size > 0 && categoriesToCheck.size > 0;
+
+  let alertsTriggered: Awaited<ReturnType<typeof checkBudgetThresholds>> = [];
+  let transaction: Awaited<ReturnType<typeof prisma.personalTransaction.update>>;
+
+  if (needsBudgetCheck) {
+    const months = [...monthsToCheck].map(key => {
+      const [month, year] = key.split('-').map(Number);
+      return { month, year };
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.personalTransaction.update({
+        where: { id: existing.id },
+        data: updates as any,
         select: {
           id: true,
-          name: true,
           type: true,
-          color: true,
-          icon: true,
+          amount: true,
+          categoryId: true,
+          userId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              color: true,
+              icon: true,
+            },
+          },
+          occurredAt: true,
+          note: true,
+          sourceType: true,
+          sourceRefId: true,
+          locked: true,
+          groupId: true,
+          group: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      const alerts = await checkBudgetThresholds({
+        tx,
+        userId,
+        categoryIds: [...categoriesToCheck],
+        months,
+      });
+
+      return { updated, alerts };
+    });
+
+    transaction = result.updated;
+    alertsTriggered = result.alerts;
+  } else {
+    transaction = await prisma.personalTransaction.update({
+      where: { id: existing.id },
+      data: updates as any,
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        categoryId: true,
+        userId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            color: true,
+            icon: true,
+          },
+        },
+        occurredAt: true,
+        note: true,
+        sourceType: true,
+        sourceRefId: true,
+        locked: true,
+        groupId: true,
+        group: {
+          select: {
+            name: true,
+          },
         },
       },
-      occurredAt: true,
-      note: true,
-      sourceType: true,
-      sourceRefId: true,
-      locked: true,
-      groupId: true,
-      group: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
+    });
+  }
 
   return res.json({
     transaction: serializeTransaction(transaction),
+    alertsTriggered: alertsTriggered.length > 0 ? alertsTriggered : undefined,
   });
 });
 

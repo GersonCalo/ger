@@ -7,15 +7,19 @@ import { useBootstrap } from '@/hooks/useBootstrap';
 import { useBudgets } from '@/hooks/useBudgets';
 import { useCategories } from '@/hooks/useCategories';
 import { useGroups } from '@/hooks/useGroups';
+import { useInsights } from '@/hooks/useInsights';
 import { useNavigation } from '@/hooks/useNavigation';
+import { useOnboarding } from '@/hooks/useOnboarding';
 import { useTransactions } from '@/hooks/useTransactions';
 
 const useFinanceAppImpl = () => {
   const navigation = useNavigation();
   const auth = useAuth();
+  const onboarding = useOnboarding({ user: auth.user });
   const transactions = useTransactions({ token: auth.token });
   const categories = useCategories({ token: auth.token });
   const budgets = useBudgets({ token: auth.token });
+  const insights = useInsights({ token: auth.token });
   const groups = useGroups({ token: auth.token, user: auth.user, setActiveTab: navigation.setActiveTab, refreshBalance: transactions.refreshBalance, refreshTransactions: transactions.refreshTransactions });
   useBootstrap({ token: auth.token, setBooting: auth.setBooting, loadSession: auth.loadSession, logoutBase: auth.logoutBase, resetToHome: navigation.resetToHome, hydrateTransactions: transactions.hydrate, resetTransactions: transactions.reset, hydrateGroups: groups.hydrate, refreshSelectedGroup: groups.refreshSelectedGroup, clearSelectedGroup: groups.clearSelectedGroup, resetGroups: groups.reset, hydrateCategories: categories.hydrate, resetCategories: categories.reset, hydrateBudgets: budgets.hydrate, resetBudgets: budgets.reset });
 
@@ -53,7 +57,7 @@ const useFinanceAppImpl = () => {
     setTheme: (t: 'light' | 'dark' | 'system') => setTheme(t),
   };
 
-  return { activeTab: navigation.activeTab, setActiveTab: navigation.setActiveTab, ...auth, ...transactions, ...groups, ...categories, ...budgets, ...pushThemePublic, logout };
+  return { activeTab: navigation.activeTab, setActiveTab: navigation.setActiveTab, ...auth, ...transactions, ...groups, ...categories, ...budgets, ...insights, ...onboarding, ...pushThemePublic, logout };
 };
 
 export type UseFinanceAppReturn = ReturnType<typeof useFinanceAppImpl>;

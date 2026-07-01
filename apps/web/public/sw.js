@@ -29,19 +29,15 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  const urlToOpen = data.groupId
-    ? `/?group=${data.groupId}`
-    : '/';
+  const urlToOpen = data.url || (data.groupId ? `/?group=${data.groupId}` : '/');
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If a window is already open, focus it
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin)) {
           return client.navigate(urlToOpen).then(() => client.focus());
         }
       }
-      // Otherwise open a new window
       return clients.openWindow(urlToOpen);
     })
   );
